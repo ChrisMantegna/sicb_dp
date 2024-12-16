@@ -1,7 +1,6 @@
 
 ---
 title: "Gray Whale EDA"
-output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -63,17 +62,20 @@ data <- data %>%
 
 ```{r}
 
-# total number of whales sighted from 2013 - 2023
+#total number of whales sighted from 2013 - 2023
+#save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
+
 total_count <- sum(data$Count, na.rm = TRUE)
 print(paste("Total Whale Count:", total_count))
 
 ```
 
-## Counts, monthly
 
+## Counts, monthly
 ```{r}
 
-# total number of whales counted per month regardless of year
+#total number of whales counted per month regardless of year
+
 monthly_counts <- data %>%
   group_by(Month) %>%
   summarise(TotalCount = sum(Count, na.rm = TRUE))
@@ -82,11 +84,45 @@ print(monthly_counts)
 
 ```
 
+## Counts, seasonally
+```{r}
+
+#create a season column
+data <- data %>%
+  mutate(Season = case_when(
+    month(SightDate) %in% c(12, 1, 2) ~ "Winter",
+    month(SightDate) %in% c(3, 4, 5) ~ "Spring",
+    month(SightDate) %in% c(6, 7, 8) ~ "Summer",
+    month(SightDate) %in% c(9, 10, 11) ~ "Fall"
+  ))
+
+#group by season
+seasonal_counts <- data %>%
+  group_by(Season) %>%
+  summarise(TotalCount = sum(Count, na.rm = TRUE)) %>%
+  arrange(match(Season, c("Winter", "Spring", "Summer", "Fall")))
+
+#print
+print(seasonal_counts)
+
+#plot seasonal trends
+library(ggplot2)
+
+ggplot(seasonal_counts, aes(x = Season, y = TotalCount, fill = Season)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Whale Sightings by Season",
+       x = "Season",
+       y = "Total Count of Sightings") +
+  theme_minimal()
+
+```
+
+
 ## Counts, quad
 
 ```{r}
 
-# total number of whales counted per quad regardless of year
+#total number of whales counted per quad regardless of year
 quad_counts <- data %>%
   group_by(Quad) %>%
   summarise(TotalCount = sum(Count, na.rm = TRUE))
@@ -101,10 +137,10 @@ print(quad_counts)
 
 # need to go back and review if I set this up correctly - this is treating these like independent variables, not dependent...
 
-channel_summary <- whale_data %>%
+channel_summary <- data %>%
   count(Channel)
 
-source_summary <- whale_data %>%
+source_summary <- data %>%
   count(Source)
 
 print(channel_summary)
@@ -112,3 +148,4 @@ print(source_summary)
 
 ```
 
+# 

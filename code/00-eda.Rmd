@@ -45,8 +45,6 @@ data <- data %>%
 
 ```
 
-```
-
 ## pull out the month from the sighting date
 ```{r}
 
@@ -62,8 +60,8 @@ data <- data %>%
 
 ```{r}
 
-#total number of whales sighted from 2013 - 2023
-#save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
+# total number of whales sighted from 2013 - 2023
+# save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
 
 total_count <- sum(data$Count, na.rm = TRUE)
 print(paste("Total Whale Count:", total_count))
@@ -74,7 +72,7 @@ print(paste("Total Whale Count:", total_count))
 ## Counts, monthly
 ```{r}
 
-#total number of whales counted per month regardless of year
+# total number of whales counted per month regardless of year
 
 monthly_counts <- data %>%
   group_by(Month) %>%
@@ -87,7 +85,7 @@ print(monthly_counts)
 ## Counts, seasonally
 ```{r}
 
-#create a season column
+# create a season column
 data <- data %>%
   mutate(Season = case_when(
     month(SightDate) %in% c(12, 1, 2) ~ "Winter",
@@ -96,16 +94,16 @@ data <- data %>%
     month(SightDate) %in% c(9, 10, 11) ~ "Fall"
   ))
 
-#group by season
+# group by season
 seasonal_counts <- data %>%
   group_by(Season) %>%
   summarise(TotalCount = sum(Count, na.rm = TRUE)) %>%
   arrange(match(Season, c("Winter", "Spring", "Summer", "Fall")))
 
-#print
+# print
 print(seasonal_counts)
 
-#plot seasonal trends
+# plot seasonal trends
 library(ggplot2)
 
 ggplot(seasonal_counts, aes(x = Season, y = TotalCount, fill = Season)) +
@@ -122,7 +120,7 @@ ggplot(seasonal_counts, aes(x = Season, y = TotalCount, fill = Season)) +
 
 ```{r}
 
-#total number of whales counted per quad regardless of year
+# total number of whales counted per quad regardless of year
 quad_counts <- data %>%
   group_by(Quad) %>%
   summarise(TotalCount = sum(Count, na.rm = TRUE))
@@ -148,4 +146,151 @@ print(source_summary)
 
 ```
 
-# 
+# Spatial Analysis
+## Temporal
+```{r}
+
+# libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(sf) # For spatial data handling
+library(ggspatial) # For map enhancements
+
+# group data by season - we did this in code lines 88 - 95, so no need to do again unless you move that code chunk below this one (we can go back and break down spring by month since it is the overwhelming majority of sightings across the years).
+
+# group data for spatial plotting
+spatial_data <- data %>%
+  group_by(Lat, Long, Season) %>%
+  summarise(TotalCount = sum(Count, na.rm = TRUE))
+
+# bounding box for Washington State and San Juan Islands
+washington_bbox <- c(xmin = -125, xmax = -120, ymin = 46, ymax = 49)
+
+# load a world map and crop to bounding box
+world <- st_as_sf(maps::map("world", plot = FALSE, fill = TRUE))
+
+# Plot whale migration patterns focusing on Washington State
+ggplot() +
+  geom_sf(data = world, fill = "gray80", color = "white") + # Base map
+  geom_point(data = spatial_data, aes(x = Long, y = Lat, size = TotalCount, color = Season), alpha = 0.7) +
+  scale_color_manual(values = c("Winter" = "blue", "Spring" = "green", "Summer" = "yellow", "Fall" = "orange")) +
+  labs(title = "Seasonal Whale Migration Patterns in Washington State",
+       x = "Longitude",
+       y = "Latitude",
+       size = "Whale Count",
+       color = "Season") +
+  coord_sf(xlim = c(washington_bbox["xmin"], washington_bbox["xmax"]),
+           ylim = c(washington_bbox["ymin"], washington_bbox["ymax"])) + # Crop to Washington
+  theme_minimal() +
+  theme(legend.position = "right") +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+  annotation_north_arrow(location = "tl", which_north = "true", style = north_arrow_fancy_orienteering())
+
+```
+
+## Time lapse - this is still incorrect - DON'T run until troubleshooting is complete
+```{r}
+
+#install.packages("gganimate")
+library("gganimate")
+
+# Add a Month-Year column for animation
+data <- data %>%
+  mutate(MonthYear = format(SightDate, "%Y-%m"))
+
+# Plot and animate
+ggplot(data, aes(x = "Long", y = "Lat", size = "Count", color = "Season")) +
+  geom_point(alpha = 0.6) +
+  geom_sf(data = world, fill = "gray80", color = "white") +
+  transition_time(as.Date(SightDate)) +
+  labs(title = "Whale Sightings: {frame_time}",
+       x = "Longitude", y = "Latitude") +
+  theme_minimal()
+
+```
+
+## group size trends
+### super busy, may want to break down by year
+```{r}
+
+# libraries
+library(dplyr)
+library(ggplot2)
+
+# group size trends over time
+group_size_trends <- data %>%
+  group_by(Year, Month) %>%
+  summarise(AverageGroupSize = mean(Count, na.rm = TRUE)) %>%
+  arrange(Year, Month)
+
+print(group_size_trends)
+
+# plot group size trends
+ggplot(group_size_trends, aes(x = interaction(Year, Month, sep = "-"), y = AverageGroupSize, group = 1)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Average Whale Group Size Over Time",
+       x = "Year-Month",
+       y = "Average Group Size") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "gray90"))
+
+```
+
+## more group trends
+### fix year to be a character. separate quad to per year/ season anything smaller
+```{r}
+
+# libraries
+library(dplyr)
+library(ggplot2)
+
+
+# trends over time (yearly and monthly)
+group_size_yearly <- data %>%
+  group_by(Year) %>%
+  summarise(AverageGroupSize = mean(Count, na.rm = TRUE),
+            MaxGroupSize = max(Count, na.rm = TRUE),
+            MinGroupSize = min(Count, na.rm = TRUE))
+
+group_size_monthly <- data %>%
+  group_by(Year, Month) %>%
+  summarise(AverageGroupSize = mean(Count, na.rm = TRUE))
+
+# plot yearly trends
+ggplot(group_size_yearly, aes(x = Year, y = AverageGroupSize, group = 1)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Yearly Average Group Size",
+       x = "Year",
+       y = "Average Group Size") +
+  theme_minimal()
+
+# 2. Group Size Distribution
+ggplot(data, aes(x = Count)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Group Sizes",
+       x = "Group Size",
+       y = "Frequency") +
+  theme_minimal()
+
+# 3. Group Size by Location (e.g., Quad)
+group_size_by_location <- data %>%
+  group_by(Quad) %>%
+  summarise(AverageGroupSize = mean(Count, na.rm = TRUE),
+            MaxGroupSize = max(Count, na.rm = TRUE),
+            MinGroupSize = min(Count, na.rm = TRUE))
+
+# Plot average group size by location
+ggplot(group_size_by_location, aes(x = as.factor(Quad), y = AverageGroupSize)) +
+  geom_bar(stat = "identity", fill = "lightblue", color = "black") +
+  labs(title = "Average Group Size by Location (Quad)",
+       x = "Quad",
+       y = "Average Group Size") +
+  theme_minimal()
+
+
+```
+

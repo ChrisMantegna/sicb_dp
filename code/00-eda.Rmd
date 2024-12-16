@@ -14,7 +14,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # libraries
 library(dplyr)
-library(readr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
 
 # dataset. Note you'll need to change the file path to match where it is on your computer
 data <- read.csv("Users/cmantegna/Documents/GitHub/sicb_dp/data/graywhales.csv")

@@ -1,4 +1,4 @@
-SightDate,Year,Time,Quad,Fish Area,Lat,Long,UTMx,UTMy,Count,Channel,Source
+SightDate,Year,Time,Quad,FishArea,Lat,Long,UTMx,UTMy,Count,Channel,Source
 12/17/23,2023,16:06,411,10,47.56,-122.59,529700,5267800,1,Orca Network,public
 5/3/23,2023,8:53,411,10,47.56,-122.59,529700,5267800,1,Hotline,Public
 4/18/23,2023,9:35,411,10,47.56,-122.59,529700,5267800,1,Hotline,Public

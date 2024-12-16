@@ -130,7 +130,7 @@ print(quad_counts)
 ```
 
 # Channel and Source Summaries
-
+## double check this is an accurate way to look at this. would work as a 'source' pie chart.
 ```{r}
 
 # need to go back and review if I set this up correctly - this is treating these like independent variables, not dependent...
@@ -148,6 +148,7 @@ print(source_summary)
 
 # Spatial Analysis
 ## Temporal
+## very, very busy - will need to plot per year, maybe animate
 ```{r}
 
 # libraries
@@ -240,7 +241,7 @@ ggplot(group_size_trends, aes(x = interaction(Year, Month, sep = "-"), y = Avera
 ```
 
 ## more group trends
-### fix year to be a character. separate quad to per year/ season anything smaller
+### fix year to be a character + separate quad to per year/ season anything smaller
 ```{r}
 
 # libraries
@@ -268,7 +269,7 @@ ggplot(group_size_yearly, aes(x = Year, y = AverageGroupSize, group = 1)) +
        y = "Average Group Size") +
   theme_minimal()
 
-# 2. Group Size Distribution
+# group size distribution
 ggplot(data, aes(x = Count)) +
   geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
   labs(title = "Distribution of Group Sizes",
@@ -276,20 +277,221 @@ ggplot(data, aes(x = Count)) +
        y = "Frequency") +
   theme_minimal()
 
-# 3. Group Size by Location (e.g., Quad)
+# group size by location (e.g., Quad)
 group_size_by_location <- data %>%
   group_by(Quad) %>%
   summarise(AverageGroupSize = mean(Count, na.rm = TRUE),
             MaxGroupSize = max(Count, na.rm = TRUE),
             MinGroupSize = min(Count, na.rm = TRUE))
 
-# Plot average group size by location
+# plot average group size by location
 ggplot(group_size_by_location, aes(x = as.factor(Quad), y = AverageGroupSize)) +
   geom_bar(stat = "identity", fill = "lightblue", color = "black") +
   labs(title = "Average Group Size by Location (Quad)",
        x = "Quad",
        y = "Average Group Size") +
   theme_minimal()
+
+
+```
+
+# Sighting probability model
+
+## troubleshooting code errors in adding dates (not necessary to rerun, but i left the code in so that if it happens again i know what to check)
+```{r}
+
+str(data) #check sightdate is actually formatted as a date
+names(data) #check sightdate is a column and not accidentally made a function based on earlier manipulations
+head(data$SightDate) #check what it looks like in the df by itself
+
+```
+
+## add dates without sightings (full code from chatgpt code)
+```{r}
+
+# Create a sequence of all possible dates within the dataset's range
+#all_dates <- seq(min(data$SightDate), max(data$SightDate), by = "day")
+all_dates <- seq(as.Date("2013-01-01"), as.Date("2023-12-31"), by = "day")
+
+# Create a data frame of "no sighting" days
+no_sighting_data <- data.frame(SightDate = all_dates) %>%
+  anti_join(data, by = "SightDate") %>%
+  mutate(Sighting = 0, Month = format(SightDate, "%m"))
+
+# Combine with existing data
+data <- data %>%
+  mutate(Sighting = 1) %>% # Add a Sighting column to existing data
+  bind_rows(no_sighting_data)
+
+```
+
+## fixing new NA values based on the addition of dates with no sightings (chatgpt code)
+```{r}
+
+# Function to determine season based on the month
+get_season <- function(month) {
+  case_when(
+    month %in% c(12, 1, 2) ~ "Winter",
+    month %in% c(3, 4, 5) ~ "Spring",
+    month %in% c(6, 7, 8) ~ "Summer",
+    month %in% c(9, 10, 11) ~ "Fall"
+  )
+}
+
+# Fill NA values for "no sighting" rows
+test_data <- data %>%
+  mutate(
+    Year = ifelse(is.na(Year), format(SightDate, "%Y"), Year),   # Use year from SightDate
+    Time = ifelse(is.na(Time), "9:99", Time),                   # Default time
+    FishArea = ifelse(is.na(FishArea), "none", FishArea),       # Placeholder for Fish Area
+    UTMx = ifelse(is.na(UTMx), 0, UTMx),                       # Default UTMx
+    UTMy = ifelse(is.na(UTMy), 0, UTMy),                       # Default UTMy
+    Count = ifelse(is.na(Count), 0, Count),                    # Default count
+    Channel = ifelse(is.na(Channel), "none", Channel),         # Placeholder for Channel
+    Source = ifelse(is.na(Source), "none", Source),            # Placeholder for Source
+    Quad = ifelse(is.na(Quad), "none", Quad),               # Placeholder for Quad
+    Lat = ifelse(is.na(Lat), 0, Lat),                          # Default Latitude
+    Long = ifelse(is.na(Long), 0, Long),                       # Default Longitude
+    Season = ifelse(is.na(Season), get_season(as.numeric(Month)), Season) # Assign correct season
+  )
+
+```
+
+
+## note shift to using test_data for this next step. this model does not converge - moved through trouble shooting and attempting to model by year to see if any specific year is throwing us off.
+## model 1 of
+```{r}
+
+# libraries
+#install.packages("caret")
+library(dplyr)
+library(ggplot2)
+library(caret) # For modeling
+library(MASS)  # For stepwise regression
+
+# USE THIS SELECT code - it explicitly calls on dplyr to perform the command
+# troubleshooting the next code bit (selecting predictors)
+model_data <- test_data %>%
+  dplyr::select(Sighting, Month, Quad, Count) %>%
+  mutate(Month = as.numeric(Month)) # Convert to numeric for modeling
+
+
+# select relevant predictors - OG code
+#model_data <- test_data %>%
+#  select(Sighting, Month, Quad, Lat, Long, Count) %>%
+#  mutate(Month = as.numeric(Month)) # Convert to numeric for modeling
+
+# split into training and testing sets
+set.seed(123)
+train_index <- createDataPartition(model_data$Sighting, p = 0.7, list = FALSE)
+train_data <- model_data[train_index, ]
+test_data <- model_data[-train_index, ]
+
+# Logistic regression model for sighting probability
+# didn't converge, so there is something underlying going on that we will address in the next code block
+sighting_model <- glm(Sighting ~ Month + Quad, 
+                      data = train_data, 
+                      family = binomial(link = "logit"))
+
+summary(sighting_model)
+
+# Predict on test data
+test_data$PredictedProb <- predict(sighting_model, newdata = test_data, type = "response")
+test_data$PredictedClass <- ifelse(test_data$PredictedProb > 0.5, 1, 0)
+
+# Evaluate model performance
+confusion_matrix <- confusionMatrix(as.factor(test_data$PredictedClass), as.factor(test_data$Sighting))
+print(confusion_matrix)
+
+```
+
+## troubleshooting the non-convergence of the model - DON'T RUN
+```{r}
+
+#multi-colinearity?
+cor(test_data %>% dplyr::select(Lat, Long, Count)) #looks like we can remove lat/ long
+
+#scale predictors? i don't understand this completely, just following the chatgpt steps for troubleshooting
+test_data <- test_data %>%
+  mutate(
+    Lat = scale(Lat),
+    Long = scale(Long),
+    Count = scale(Count)
+  )
+
+#balancing? From ChatGPT: If the dataset has a significant class imbalance, downsample the majority class or upsample the minority class
+library(dplyr)
+library(tidyr)
+
+# Downsample majority class (Sighting = 0)
+balanced_data <- test_data %>%
+  group_by(Sighting) %>%
+  sample_n(min(table(test_data$Sighting)))
+
+
+
+
+
+```
+
+## model 2 of
+## different model to try - also does not converge and i will need to use chatgpt to help me understand the output
+```{r}
+
+#different number of training iterations
+sighting_model <- glm(Sighting ~ Month + Quad + Count, 
+                      data = train_data, 
+                      family = binomial(link = "logit"),
+                      control = glm.control(maxit = 50)) # Default is 25
+
+
+library(glmnet)
+
+# Prepare data for glmnet (x = predictors, y = response)
+x <- model.matrix(Sighting ~ Month + Quad + Count, data = train_data)[, -1]
+y <- train_data$Sighting
+
+# Fit a penalized logistic regression model (lasso)
+lasso_model <- cv.glmnet(x, y, family = "binomial", alpha = 1)
+
+```
+
+## model 3 of
+## trying year by year step through (2023 DNC, )
+```{r}
+
+# filter the data for a single year
+single_year_data <- test_data %>%
+  filter(format(SightDate, "%Y") == "2023")
+
+# check balance of Sighting
+table(single_year_data$Sighting)
+
+#check summary of predictors
+summary(single_year_data)
+
+# Split into training and testing sets
+set.seed(123)
+train_index <- createDataPartition(single_year_data$Sighting, p = 0.7, list = FALSE)
+train_data <- single_year_data[train_index, ]
+test_data <- single_year_data[-train_index, ]
+
+# Train logistic regression
+single_year_model <- glm(Sighting ~ Month + Quad + Count, 
+                         data = train_data, 
+                         family = binomial(link = "logit"))
+
+# Summarize the model
+summary(single_year_model)
+
+# Predict on test data
+test_data$PredictedProb <- predict(single_year_model, newdata = test_data, type = "response")
+test_data$PredictedClass <- ifelse(test_data$PredictedProb > 0.5, 1, 0)
+
+# Evaluate performance
+library(caret)
+confusion_matrix <- confusionMatrix(as.factor(test_data$PredictedClass), as.factor(test_data$Sighting))
+print(confusion_matrix)
 
 
 ```

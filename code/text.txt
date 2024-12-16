@@ -1,4 +1,4 @@
-All code files here. 
+All code files here. Darian
 Notes on naming and generating code files:
 * All code files should be .rmd files. Markdown allows you a ton of flexibility in your workflow and can render in several usable formats - straight markdown (.md) is basically like using a text file versus a Word doc; all formatting is lost.
 

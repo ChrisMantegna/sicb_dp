@@ -1,0 +1,317 @@
+---
+title: Sounder's Data Prep
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+```
+
+# Data cleaning
+## Clean up the df, fill in the empty data points, fix variation in capitalization of channel and source values.
+```{r}
+
+# before importing the data, I changed all column names (for columns we're going to use) to lowercase or camelcase because I hate remembering to capitalize when I don't have to.
+
+# remove the columns we're not going to use
+columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction", "reportingParty")
+data <- data %>% select(-all_of(columns_to_drop))
+
+# take care of the empties with predetermined values
+data$time[is.na(data$time)] <- "0:00"
+data$count[is.na(data$count)] <- 1
+data$channel[is.na(data$channel)] <- "unknown"
+data$source[is.na(data$source)] <- "unknown"
+
+# fix variable names in the channel and source columns. 
+# since both uppercase and lowercase are used, they will be treated as unique cases, this step stops that from happening. The 'dplyr' package does this.
+data <- data %>%
+  mutate(channel = tolower(channel),
+         source = tolower(source))
+
+# check your work & then write out the new df as a safety stop
+head(data)
+write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/data_cleaned.csv", row.names = FALSE)
+
+
+```
+
+## Format sightDate and pull out the month from the date
+```{r}
+
+# convert SightDate to date format and extract the month
+data <- data %>%
+  mutate(sightDate = as.Date(sightDate, format = "%m/%d/%y"),
+         month = format(sightDate, "%m"))
+         
+```
+
+## Add a season column
+```{r}
+
+# create a season column
+data <- data %>%
+  mutate(season = case_when(
+    month(sightDate) %in% c(12, 1, 2) ~ "Winter",
+    month(sightDate) %in% c(3, 4, 5) ~ "Spring",
+    month(sightDate) %in% c(6, 7, 8) ~ "Summer",
+    month(sightDate) %in% c(9, 10, 11) ~ "Fall"
+  ))
+
+```
+
+## Pull out out identified whales, make a new column
+```{r}
+
+# we're going to extract all of the comments from the column and make them individual rows so we can assess what we have. This code came directly from ChatGPT
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Function to extract whale identifiers
+extract_whale_identifiers <- function(comment) {
+  pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"  # Matches #723, CRC-44, or names like Shakleton
+  str_extract_all(comment, pattern)
+}
+
+# Apply the extraction function to create a new column
+data <- data %>%
+  mutate(whale_identifiers = lapply(comments, extract_whale_identifiers)) %>%
+  unnest(whale_identifiers)  # Explode the lists into separate rows
+
+# Filter for rows where whale_identifiers is not NA
+timeline_data <- data %>% filter(!is.na(whale_identifiers))
+
+# check your work & write out as a table to save progress if you need to.
+head(timeline_data)
+
+```
+
+## Pull out the identified whales, unique names
+```{r}
+
+# we have lists of IDs in the comments column, but not all of them are actual IDs but rather observation note (i.e., young whale) and we want to know what we're working with. This code came from ChatGPT.
+
+library(stringr)
+
+# Define the regex pattern used for extraction
+pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
+
+# Extract identifiers from comments
+extracted_identifiers <- str_extract_all(timeline_data$comments, pattern)
+
+# Flatten the list and get unique values
+unique_identifiers <- unique(unlist(extracted_identifiers))
+
+# View the unique identifiers
+print(unique_identifiers)
+
+# write out to your data_adjusted output folder
+
+# unblock this if you have made changes before this step to overwrite the old list
+#write.csv(unique_identifiers, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/identifiers.csv", row.names = FALSE)
+
+```
+
+# EDA
+## total count 
+```{r}
+
+# total number of sounders sighted from 2013 - 2023
+# save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
+
+total_count <- sum(data$count, na.rm = TRUE)
+print(paste("Total Whale Count:", total_count))
+
+```
+
+## count by year
+```{r}
+
+yearly_counts <- data %>%
+  group_by(year) %>%
+  summarise(yearlyCount = sum(count, na.rm = TRUE))
+
+# print
+print(yearly_counts)
+
+```
+
+
+## count by month
+```{r}
+
+# total number of whales counted per month regardless of year
+
+monthly_counts <- data %>%
+  group_by(month) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE))
+
+print(monthly_counts)
+
+```
+
+## count by season
+```{r}
+
+# group by season
+seasonal_counts <- data %>%
+  group_by(season) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE)) %>%
+  arrange(match(season, c("Winter", "Spring", "Summer", "Fall")))
+
+# print
+print(seasonal_counts)
+
+# plot seasonal trends
+library(ggplot2)
+
+ggplot(seasonal_counts, aes(x = season, y = totalCount, fill = season)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Whale Sightings by Season",
+       x = "Season",
+       y = "Total Count of Sightings") +
+  theme_minimal()
+
+```
+
+## count by season and year
+```{r}
+
+library(ggplot2)
+library(dplyr)
+
+# Group by year and season to get seasonal counts for each year
+seasonal_counts_by_year <- data %>%
+  group_by(year, season) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE)) %>%
+  arrange(year, match(season, c("Winter", "Spring", "Summer", "Fall")))
+
+# Print the grouped data
+print(seasonal_counts_by_year)
+
+# Plot seasonal trends by year
+ggplot(seasonal_counts_by_year, aes(x = season, y = totalCount, fill = season)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ year) +  # Create a grid of plots, one for each year
+  labs(title = "Whale Sightings by Season and Year",
+       x = "Season",
+       y = "Total Count of Sightings") +
+  theme_minimal()
+
+```
+
+
+## count by quad
+```{r}
+
+# total number of whales counted per quad regardless of year, descending order
+quad_counts <- data %>%
+  group_by(quad) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE))%>%
+  arrange(desc(totalCount))
+
+print(quad_counts)
+
+```
+
+## 'map' of sightings - do line 247 data cleaning first
+### have to clean up identifiers before doing
+```{r}
+
+# plotting with lat/ long coordinates, but not overlayed on a map - just want to see what it looks like
+
+library(ggplot2)
+
+ggplot(timeline_data, aes(x = long, y = lat, color = whale_identifiers)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Map of Whale Sightings", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```
+
+# timeline of sightings
+```{r}
+
+# convert sightDate to Date format (if it wasn't done earlier)
+#timeline_data$sightDate <- as.Date(timeline_data$sightDate, format = "%m/%d/%y")
+
+ggplot(timeline_data, aes(x = sightDate, y = whale_identifiers)) +
+  geom_point(aes(color = whale_identifiers), alpha = 0.6) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Timeline of Whale Sightings", x = "Date", y = "Whale Identifiers", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## movement patterns
+```{r}
+
+# Sort by identifiers and date
+timeline_data <- timeline_data[order(timeline_data$whale_identifiers, timeline_data$sightDate), ]
+
+ggplot(timeline_data, aes(x = long, y = lat, group = whale_identifiers, color = whale_identifiers)) +
+  geom_path(alpha = 0.6) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Movement Patterns of Identifiable Whales", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```
+
+# Data Cleaning, Part 2
+## remove non-whale identifiers - finish the list!
+```{r}
+
+# make the list of the exclusions
+non_whale_identifiers <- c("Alyssa Brooks", "Orca Network", "Public", "Reliable")
+
+# filter them out
+timeline_data <- timeline_data %>%
+  filter(!whale_identifiers %in% non_whale_identifiers)
+
+```
+
+## unify multiple identifiers for an individual
+```{r}
+
+# This is ChatGPT code to help us fix the multiple name situation
+
+# Create a mapping of identifiers to a unified name
+identifier_mapping <- c(
+  "CRC-21" = "Shackleton",
+  "#21" = "Shackleton",
+  "Shackleton" = "Shackleton"
+  # Add more mappings as needed
+)
+
+# Replace identifiers in the data using the mapping
+timeline_data$whale_identifiers <- recode(timeline_data$whale_identifiers, !!!identifier_mapping)
+
+```
+

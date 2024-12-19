@@ -115,7 +115,6 @@ ggplot(seasonal_counts, aes(x = Season, y = TotalCount, fill = Season)) +
 
 ```
 
-
 ## Counts, quad
 
 ```{r}

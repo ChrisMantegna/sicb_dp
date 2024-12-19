@@ -1,0 +1,82 @@
+---
+title: Sounder's Data Prep
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+```
+
+# Data cleaning
+## Clean up the df and fill in the empty data points
+```{r}
+
+# before importing the data, I changed all column names (for columns we're going to use) to lowercase or camelcase because I hate remembering to capitalize when I don't have to.
+
+# remove the columns we're not going to use
+columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction", "reportingParty")
+#data <- data %>% select(-all_of(columns_to_drop))
+
+# take care of the empties with predetermined values
+data$time[is.na(data$time)] <- "0:00"
+data$count[is.na(data$count)] <- 1
+data$channel[is.na(data$channel)] <- "unknown"
+data$source[is.na(data$source)] <- "unknown"
+
+# View the cleaned data
+head(data)
+
+
+```
+
+## Pull out the identified whales 
+```{r}
+
+# we're going to extract all of the comments from the column and make them individual rows so we can assess what we have. This code came directly from ChatGPT
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Function to extract whale identifiers
+extract_whale_identifiers <- function(comment) {
+  pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"  # Matches #723, CRC-44, or names like Shakleton
+  str_extract_all(comment, pattern)
+}
+
+# Apply the extraction function to create a new column
+data <- data %>%
+  mutate(whale_identifiers = lapply(comments, extract_whale_identifiers)) %>%
+  unnest(whale_identifiers)  # Explode the lists into separate rows
+
+# Filter for rows where whale_identifiers is not NA
+timeline_data <- data %>% filter(!is.na(whale_identifiers))
+
+# View the timeline data
+head(timeline_data)
+
+
+```
+

@@ -954,8 +954,8 @@
 3/23/18,2018,15:02,385,8,48.01,-122.22,555900,5318200,0,0,Gray,2,Mill,"Between Hat and Everett. #49, #53",Orca Network,Reliable,Renee Beitzel
 3/20/18,2018,10:00,386,8,47.96,-122.29,551400,5312100,0,0,Gray,5,Mill,"between ferry and Hat. Patch (49) , Little Patch (53), 531, 383",Orca Network,Public,Kristina Trowbridge
 5/26/20,2020,12:00,386,8,47.96,-122.29,551400,5312100,0,0,Gray,3,N,"Behavior: Travelling slowly. ID: CRCID44 ""Dubknuck"", CRCID22 ""Earhart""",Orca Network,Public,John Judy
-5/19/20,2020,12:00,386,8,47.96,-122.29,551400,5312100,0,0,Gray,2,,"Behavior: Swimming slowly.ID: CRC # 22 &
-CRC-2255",Orca Network,Public,John Judy
+5/19/20,2020,12:00,386,8,47.96,-122.29,551400,5312100,0,0,Gray,2,,Behavior: Swimming slowly.ID: CRC # 22 &,,,
+"CRC-2255""",Orca Network,Public,John Judy,,,,,,,,,,,,,,
 4/20/20,2020,,384,8,48.02,-122.31,549800,5319100,0,0,Gray,2,S,Behavior: Spyhop. IDs: #22 Earhart,Orca Network,Reliable,Lori Christopher
 6/15/20,2020,9:15,445,9,47.85,-122.63,526100,5300400,0,0,Gray,1,E,"Behavior: Spouting once, moving quietly.",Orca Network,Public,Patti Heikel
 6/19/20,2020,10:00,385,8,48.01,-122.22,555900,5318200,0,0,Gray,1,,Behavior: Milling. ID: CRC2356.,Orca Network,Reliable,Bart Rulon

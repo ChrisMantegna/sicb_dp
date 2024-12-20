@@ -1,0 +1,52 @@
+---
+title: Junkyard
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# filter out non-identifiers
+```{r}
+
+# make the list of the exclusions
+non_whale_identifiers <- c("Id", "Three", "Shrimp", "Possession Sound", "Saratoga", "Port Susan", "Stayed", "Alie Perez", "Cascadia Research", "Source", "Hat", "Hat Island", "Saw", "Presumably", "Polnell Shores", "End", "Alisa Lemire", "Brooks", "Marcie Goldberg", "Terra Parham", "We", "Gedney", "Camano Head", "Orca Network", "One", "Whidbey", "Possession Point", "North", "Mukilteo", "Most", "Little Patch", "Likely", "Is", "Individual", "Ds", "Including", "In", "Ids", "First", "North Puget", "Beh", "Spyhopping", "Looked", "Dodging", "Fluke Tip", "Identified", "Behavior", "Possible", "Island Adventures", "Blog", "Juv", "Feeding", "Fluke", "East", "Right", "Poss", "Snohomish", "No", "Fox Spit", "Sighting", "Gisborne", "Afternoon", "Everett", "Langley", "Socializing", "Near", "Sandy Point", "Alie Perex", "Delta", "Blows", "Between Hat", "Travelling", "Swimming", "Spyhop", "Spouting", "Fluke Dive", "Flips", "Newb", "Rolling", "Tail", "Deep", "Mabana", "Pebble Beach", "Within", "Also", "Elliott Bay", "Jetty Island", "Fluking", "West", "Penn Cove", "Milling")
+
+# filter them out
+timeline_data <- timeline_data %>%
+  filter(!whale_identifiers %in% non_whale_identifiers)
+
+```
+
+# unify the identifiers
+```{r}
+
+# This is ChatGPT code to help us fix the multiple name situation
+
+# Create a mapping of identifiers to a unified name
+identifier_mapping <- c(
+  "CRC-21" = "Shackleton",
+  "#21" = "Shackleton",
+  "Shackleton" = "Shackleton"
+  # Add more mappings as needed
+)
+
+# Replace identifiers in the data using the mapping
+timeline_data$whale_identifiers <- recode(timeline_data$whale_identifiers, !!!identifier_mapping)
+
+```
+
+# extract identifiers
+```{r}
+
+# Function to extract whale identifiers
+extract_whale_identifiers <- function(comment) {
+  pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"  # Matches #723, CRC-44, or names like Shakleton
+  str_extract_all(comment, pattern)
+}
+```
+
+```{r}
+
+```
+

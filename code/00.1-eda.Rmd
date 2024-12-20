@@ -27,10 +27,11 @@ getwd()
 
 # we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
 data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+
 ```
 
 # Data cleaning
-## Clean up the df, fill in the empty data points, fix variation in capitalization of channel and source values.
+## clean up the df, fill in the empty data points, fix variation in capitalization of comments, channel & source
 ```{r}
 
 # before importing the data, I changed all column names (for columns we're going to use) to lowercase or camelcase because I hate remembering to capitalize when I don't have to.
@@ -40,25 +41,26 @@ columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction"
 data <- data %>% select(-all_of(columns_to_drop))
 
 # take care of the empties with predetermined values
-data$time[is.na(data$time)] <- "0:00"
+data$time[data$time == ""] <- "0:00"
+data$count[data$count == ""] <- 1
 data$count[is.na(data$count)] <- 1
-data$channel[is.na(data$channel)] <- "unknown"
-data$source[is.na(data$source)] <- "unknown"
+data$channel[data$channel == ""] <- "unknown"
+data$source[data$source == ""] <- "unknown"
 
 # fix variable names in the channel and source columns. 
 # since both uppercase and lowercase are used, they will be treated as unique cases, this step stops that from happening. The 'dplyr' package does this.
 data <- data %>%
   mutate(channel = tolower(channel),
-         source = tolower(source))
+         source = tolower(source),
+         comments = tolower(comments))
 
 # check your work & then write out the new df as a safety stop
 head(data)
-write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/data_cleaned.csv", row.names = FALSE)
-
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/data_cleaned.csv", row.names = FALSE)
 
 ```
 
-## Format sightDate and pull out the month from the date
+## format sightDate and pull out the month from the date
 ```{r}
 
 # convert SightDate to date format and extract the month
@@ -68,7 +70,7 @@ data <- data %>%
          
 ```
 
-## Add a season column
+## add a season column
 ```{r}
 
 # create a season column
@@ -82,7 +84,7 @@ data <- data %>%
 
 ```
 
-## Pull out out identified whales, make a new column
+## list identified whales from the comment column, make a new column
 ```{r}
 
 # we're going to extract all of the comments from the column and make them individual rows so we can assess what we have. This code came directly from ChatGPT
@@ -91,26 +93,33 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 
-# Function to extract whale identifiers
+# Function to extract whale identifiers, including plain numbers and case-insensitive CRC identifiers
+# Updated pattern:
+  # 1. Matches # followed by digits (#123)
+  # 2. Matches case-insensitive CRC followed by digits (CRC-123, crc123)
+  # 3. Matches plain numbers (1234)
+  # 4. Matches names with one or two capitalized words (e.g., Shackleton, Little Patch)
 extract_whale_identifiers <- function(comment) {
-  pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"  # Matches #723, CRC-44, or names like Shakleton
+  pattern <- "(#[\\d]+|(?:[Cc][Rr][Cc][-]?\\d+)|\\b\\d+\\b|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
   str_extract_all(comment, pattern)
 }
 
 # Apply the extraction function to create a new column
 data <- data %>%
-  mutate(whale_identifiers = lapply(comments, extract_whale_identifiers)) %>%
-  unnest(whale_identifiers)  # Explode the lists into separate rows
+  mutate(whale_identifiers = sapply(lapply(comments, extract_whale_identifiers), paste, collapse = ", "))
+
 
 # Filter for rows where whale_identifiers is not NA
-timeline_data <- data %>% filter(!is.na(whale_identifiers))
+#timeline_data <- data %>% filter(!is.na(whale_identifiers))
 
 # check your work & write out as a table to save progress if you need to.
-head(timeline_data)
+head(data)
+
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/timeline_data.csv", row.names = FALSE)
 
 ```
 
-## Pull out the identified whales, unique names
+## list identified whales, unique names
 ```{r}
 
 # we have lists of IDs in the comments column, but not all of them are actual IDs but rather observation note (i.e., young whale) and we want to know what we're working with. This code came from ChatGPT.
@@ -121,7 +130,7 @@ library(stringr)
 pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
 
 # Extract identifiers from comments
-extracted_identifiers <- str_extract_all(timeline_data$comments, pattern)
+extracted_identifiers <- str_extract_all(data$comments, pattern)
 
 # Flatten the list and get unique values
 unique_identifiers <- unique(unlist(extracted_identifiers))
@@ -133,6 +142,77 @@ print(unique_identifiers)
 
 # unblock this if you have made changes before this step to overwrite the old list
 #write.csv(unique_identifiers, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/identifiers.csv", row.names = FALSE)
+
+```
+
+# Data Cleaning, Part 2
+## remove non-whale identifiers
+```{r}
+
+# Define a list of valid whale identifiers
+valid_identifiers <- c("#723", "#49", "#383", "CRC-44", "CRC-56", "#44", "Shrimp", "Gray", "#185", "Shackleton", "#21", "Earhart", "#22","CRC-49", "CRC-53", "Saratoga Gray", "#724", "CRC-531", "CRC-383", "CRC-21", "Possible Gray", "#531", "CRC-185", "Patch", "Lucyfer", "Dubknuck", "Lucyfe", "#56", "Gray Whale", "Little Patch", "#53", "Shack", "Newbie", "Likely Shackleton", "Sound Grey", "Whale", "#2259", "Shackelton", "Dubnunk", "#2258", "#356", "Possibly Dubknuck", "CRC-2246", "Dubnuk", "Dubnuck", "Juv", "CRC-2262", "Lucy", "#2246", "Gray Whales", "Earheart", "Stardust", "Hattie", "Sounder", "Thidwick", "Gretchen", "Cascade", "Carson", "Tahoma", "Stalwart", "Eaerhart", "Gisborne", "CRC-723", "CRC-22", "CRC-2549", "Delta", "CRC-2234", "Crc", "Cretchen", "CRC-2255", "#2262", "Newb", "Adult Grays", "Lucifer", "#2249", "Patches", "#42", "#33", "#2356", "#2261", "#2253", "#2252", "#2251", "#2234", "PCFG 185", "CRC2246", "young gray whale", "patch", "little patch", "53", "49", "56", "352", "185", "723")
+
+# Filter whale_identifiers to keep only valid ones
+data <- data %>%
+  mutate(whale_identifiers = lapply(whale_identifiers, function(ids) {
+    ids[ids %in% valid_identifiers]
+  }))
+
+```
+
+## re-check for unique identifiers
+## list identified whales, unique names
+```{r}
+
+# we have lists of IDs in the comments column, but not all of them are actual IDs but rather observation note (i.e., young whale) and we want to know what we're working with. This code came from ChatGPT.
+
+library(stringr)
+
+# Define the regex pattern used for extraction
+pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
+
+# Extract identifiers from comments
+extracted_identifiers <- str_extract_all(data$comments, pattern)
+
+# Flatten the list and get unique values
+unique_identifiers <- unique(unlist(extracted_identifiers))
+
+# View the unique identifiers
+print(unique_identifiers)
+
+# write out to your data_adjusted output folder
+
+# unblock this if you have made changes before this step to overwrite the old list
+#write.csv(unique_identifiers, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/identifiers2.csv", row.names = FALSE)
+
+```
+
+## unify multiple identifiers for an individual
+```{r}
+
+# Create a synonym mapping (key-value pairs)
+identifier_mapping <- c("A1" = "A", "A2" = "A", "B1" = "B", "B2" = "B")  # Example
+
+# Standardize identifiers
+data <- data %>%
+  mutate(whale_identifiers = lapply(whale_identifiers, function(ids) {
+    sapply(ids, function(id) ifelse(id %in% names(identifier_mapping), identifier_mapping[id], id))
+  }))
+
+```
+
+## adjust the df to account for multiple whales listed in one comment line
+```{r}
+
+library(tidyr)
+
+# Assume the `count` column represents the total number of whales observed
+data <- data %>%
+  unnest(whale_identifiers) %>%  # Each identifier gets its own row
+  group_by(row_id = row_number()) %>%  # Add unique row identifier
+  mutate(count = count / n()) %>%  # Divide count by number of identifiers
+  ungroup() %>%
+  select(-row_id)  # Remove helper column
 
 ```
 
@@ -238,8 +318,8 @@ print(quad_counts)
 
 ```
 
-## 'map' of sightings - do line 247 data cleaning first
-### have to clean up identifiers before doing
+
+## 'map' of sightings
 ```{r}
 
 # plotting with lat/ long coordinates, but not overlayed on a map - just want to see what it looks like
@@ -254,7 +334,7 @@ ggplot(timeline_data, aes(x = long, y = lat, color = whale_identifiers)) +
 
 ```
 
-# timeline of sightings
+## timeline of sightings
 ```{r}
 
 # convert sightDate to Date format (if it wasn't done earlier)
@@ -284,34 +364,4 @@ ggplot(timeline_data, aes(x = long, y = lat, group = whale_identifiers, color = 
 
 ```
 
-# Data Cleaning, Part 2
-## remove non-whale identifiers - finish the list!
-```{r}
-
-# make the list of the exclusions
-non_whale_identifiers <- c("Alyssa Brooks", "Orca Network", "Public", "Reliable")
-
-# filter them out
-timeline_data <- timeline_data %>%
-  filter(!whale_identifiers %in% non_whale_identifiers)
-
-```
-
-## unify multiple identifiers for an individual
-```{r}
-
-# This is ChatGPT code to help us fix the multiple name situation
-
-# Create a mapping of identifiers to a unified name
-identifier_mapping <- c(
-  "CRC-21" = "Shackleton",
-  "#21" = "Shackleton",
-  "Shackleton" = "Shackleton"
-  # Add more mappings as needed
-)
-
-# Replace identifiers in the data using the mapping
-timeline_data$whale_identifiers <- recode(timeline_data$whale_identifiers, !!!identifier_mapping)
-
-```
 

@@ -1,0 +1,139 @@
+---
+title: Plots 01.1: Sounders' Networking
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+## only working with the Sounders' data in this markdown file
+
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+#data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_added_rows.csv")
+
+```
+
+# Data Clarification
+## we're going to add a column that differentiates the Sounders from the other identified gray whales
+```{r}
+
+library(dplyr)
+
+# List of sounders
+sounder_whales <- c(21, 22, 44, 49, 53, 56, 185, 356, 383, 531, 543, 723, 
+                    2246, 2249, 2255, 2259, 2261, 2356, 2362, 2440, 2441)
+
+# add a new column 'sounders' with the three possible values
+data <- data %>%
+  mutate(sounders = case_when(
+    whale_identifier %in% sounder_whales ~ "y",          # If a sounder whale, mark as 'y'
+    is.na(whale_identifier) | whale_identifier == "" ~ "u", # If unknown, mark as 'u'
+    TRUE ~ "n"                                          # Otherwise, mark as 'n'
+  ))
+
+# write out
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_identified.csv", row.names = FALSE)
+
+
+```
+
+
+# Network Centrality Analysis
+## code adjusted/ updated/ fixed with ChatGPT; complete titles and explanations will follow in the next day or two
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+
+# Filter for valid whales (exclude "unknown")
+filtered_data <- data %>%
+  filter(whale_identifier != "unknown")
+
+# Create co-occurrence pairs
+co_occurrence <- filtered_data %>%
+  group_by(sightDate, time, lat, long) %>%
+  summarize(whale_list = list(whale_identifier), .groups = "drop") %>%
+  unnest(whale_list) %>%
+  tidyr::crossing(item2 = whale_list) %>%
+  filter(whale_list != item2) %>% # Remove self-loops
+  group_by(whale_list, item2) %>%
+  summarize(count = n(), .groups = "drop")
+
+# Inspect the co-occurrence data
+print(co_occurrence)
+
+```
+
+```{r}
+
+library(igraph)
+
+# Create a graph object
+graph <- graph_from_data_frame(co_occurrence, directed = FALSE)
+
+# Inspect the graph
+print(graph)
+
+```
+
+```{r}
+
+# Calculate centrality measures
+degree_centrality <- degree(graph, mode = "all")
+betweenness_centrality <- betweenness(graph, directed = FALSE)
+eigen_centrality <- eigen_centrality(graph)$vector
+
+# Combine centrality metrics into a data frame
+centrality_metrics <- data.frame(
+  Whale = V(graph)$name,
+  Degree = degree_centrality,
+  Betweenness = betweenness_centrality,
+  Eigenvector = eigen_centrality
+)
+
+# View the centrality metrics
+print(centrality_metrics)
+
+```
+
+```{r}
+
+# Scale node size by degree centrality
+V(graph)$size <- degree_centrality * 2
+
+# Scale node color by eigenvector centrality
+V(graph)$color <- ifelse(eigen_centrality > median(eigen_centrality), "red", "blue")
+
+# Visualize the graph
+plot(
+  graph,
+  vertex.label.cex = 0.8,
+  vertex.size = V(graph)$size,
+  vertex.color = V(graph)$color,
+  edge.arrow.size = 0.5,
+  main = "Whale Social Network (Node Size = Degree, Color = Eigenvector)"
+)
+
+```
+

@@ -1,45 +1,45 @@
 Whales,matchingID,sounder,,,,New Matching Info Here,,Sounder,Note,Sex
 Shackleton,21,,,,,21,Shackleton,y,was called shrimp when he was first ID'd but it is only colloquial now,m
 Shackelton,21,,,,,22,Earhart,y,,f
-Earhart,22,,,,,30,,,,
-Earheart,22,,,,,42,,,,
+Earhart,22,,,,,30,,n,,
+Earheart,22,,,,,42,,n,,
 Eaerhart,22,,,,,44,Dubnuck,y,,m
 Dubnunk,44,,,,,49,Patch,y,,m
 Possibly Dubknuck,44,,,,,53,Little Patch,y,,m
 Dubnuk,44,,,,,56,Stardust,y,,m
 Dubnuck,44,,,,,185,Gisborne,y,,m
-Patches,49,,,,,225,,,,
+Patches,49,,,,,225,,n,,
 Stardust,56,,,,,356,Carson,y,,
 Gisborne,185,,,,,383,Cascade,y,,m
 Carson,356,,,,,531,Gretchen,y,,f
-Cascade,383,,,,,698,,,,
-Gretchen,531,sounder,,,,723,Lucyfer,y,,m
-Cretchen,531,,,,,766,,,,
-Lucy,723,(misgendered lucyfer),,,,1364,,,,
-Lucifer,723,,,,,2234,Polka Dot,n,,
-Hattie,2249,,,,,2240,,,,
-Stalwart,2356,,,,,2246,,y,,
-Delta,2356,,,,,2249,Hattie,y,,
-Thidwick,2362,sounders,,,,2252,,,,
-Tahoma,2440,,,,,2253,,,,
-#383,cascade,,,,,2255,,,,
-#2234,CRC-2234,,,,,2256,,,,
-#22,earhart,,,,,2258,,,,
-CRC-22,earhart,sounder,,,,2259,,,,
-#2249,hattie,,,,,2261,,,,
-CRC-53,little patch,,,,,2262,,,,
-#723,lucyfer,y,,,,2356,Stalwart,y,,
-CRC-723,lucyfer,sounder,,,,2362,Thidwick,y,,
-#2259,no name,,,,,2440,Tahoma,y,,
-CRC-2246,no name,sounder,,,,2441,,,,
-CRC-2549,no name,,,,,2442,,,,
-CRC-2255,no name,sounder?,,,,2445,,,,
-#2262,no name,,,,,2447,,,,
-#42,no name,sounder,,,,396,,y,possibly deceased sounder - in alex's thesis in 2019,f
+Cascade,383,,,,,543,,y,,
+Gretchen,531,sounder,,,,698,,n,,
+Cretchen,531,,,,,723,Lucyfer,y,,m
+Lucy,723,(misgendered lucyfer),,,,766,,n,,
+Lucifer,723,,,,,1364,,n,,
+Hattie,2249,,,,,2234,Polka Dot,n,,
+Stalwart,2356,,,,,2240,,n,,
+Delta,2356,,,,,2246,,y,,
+Thidwick,2362,sounders,,,,2249,Hattie,y,,
+Tahoma,2440,,,,,2252,,n,,
+#383,cascade,,,,,2253,,n,,
+#2234,CRC-2234,,,,,2255,,y,,
+#22,earhart,,,,,2256,,n,,
+CRC-22,earhart,sounder,,,,2258,,n,,
+#2249,hattie,,,,,2259,,y,,
+CRC-53,little patch,,,,,2261,,y,,
+#723,lucyfer,y,,,,2262,,n,,
+CRC-723,lucyfer,sounder,,,,2356,Stalwart,y,,
+#2259,no name,,,,,2362,Thidwick,y,,
+CRC-2246,no name,sounder,,,,2440,Tahoma,y,,
+CRC-2549,no name,,,,,2441,,y,,
+CRC-2255,no name,sounder?,,,,2442,,n,,
+#2262,no name,,,,,2445,,n,,
+#42,no name,sounder,,,,2447,,n,,
 #33,no name,sounder,,,,,,,,
 #2261,no name,,,,,,,,,
-#2253,no name,,,,,,,,,
-#2252,no name,,,,,,,,,
+#2253,no name,,,,,396,,y,possibly deceased sounder - in alex's thesis in 2019,f
+#2252,no name,,,,,data confirming sounders group: https://cascadiaresearch.org/project/north-puget-sound-gray-whale-photo-id-and-feeding-study/,,,,
 #2251,no name,,,,,,,,,
 #49,patch,,,,,,,,,
 CRC-49,patch,,,,,,,,,

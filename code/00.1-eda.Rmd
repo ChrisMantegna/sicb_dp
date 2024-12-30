@@ -98,12 +98,56 @@ data <- data %>%
 
 # double check your work and save it - safety stop; the file name is to help me keep track of what was saved at which step
 head(data)
-write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
 
 ```
 
 ## list identified whales from the comment column, make a new column
 ```{r}
+
+# pull out the unique whale identifiers from the `comments` column
+# Assuming whale identifiers are numbers, extract them
+#unique_whales <- unique(str_extract_all(data$comments, "\\d+") %>% unlist())
+#print(unique_whales)
+
+# Step 2: Extract all unique identifiers from the `comments` column
+# Capture whole numbers, formatted identifiers like #21, crc-21, cr21, id21, nps21, and words
+unique_identifiers <- unique(str_extract_all(data$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") %>% unlist())
+
+# View all unique identifiers
+print(unique_identifiers)
+
+# Identify rows where `comments` column contains just "2"
+rows_with_2 <- data %>% 
+  filter(str_detect(comments, "\\b2\\b"))
+
+# View the rows
+print(rows_with_2)
+
+
+```
+## change the df to reflect sightings and counts of identified whales
+```{r}
+
+# we are pulling the unique IDs out, making them their own row, and ensuring we don't inflate the count of whales. To make sure it is correct, we should see our total whale count remain at 2742. Any deviation indicates an error in changing the df. This is ChatGPT code.
+
+expanded_data <- data %>%
+  mutate(whales = str_split(comments, ",\\s*")) %>%
+  unnest(whales) %>%
+  mutate(whales = if_else(str_detect(whales, "^\\d+$"), whales, "unknown")) %>%
+  group_by(across(-count, -whales)) %>%
+  summarize(
+    count = case_when(
+      whales == "unknown" ~ sum(count) - n_distinct(whales),
+      TRUE ~ 1
+    ),
+    whales = whales
+  ) %>%
+  ungroup()
+
+# Write the updated dataset to a new file
+write.csv(expanded_data,"/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_added_rows.csv", row.names = FALSE)
+
 
 ```
 

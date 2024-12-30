@@ -92,13 +92,20 @@ data <- data %>%
     month(sightDate) %in% c(9, 10, 11) ~ "fall"
   ))
 
+# fix the missing (-) on the long values; i think i removed them with a formatting process.
+data <- data %>%
+  mutate(long = paste0("-", long))
+
 # double check your work and save it - safety stop; the file name is to help me keep track of what was saved at which step
 head(data)
-#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
+write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
 
 ```
 
 ## list identified whales from the comment column, make a new column
+```{r}
+
+```
 
 
 # EDA
@@ -167,7 +174,7 @@ ggplot(seasonal_counts, aes(x = season, y = totalCount, fill = season)) +
 ```
 
 ## count by season and year
-
+## I'm a sucker for a wrapped plot... this viz just helps us see what is in the table
 ```{r}
 
 library(ggplot2)

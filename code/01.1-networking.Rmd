@@ -39,101 +39,333 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 
 library(dplyr)
 
-# List of sounders
+# list of sounders
 sounder_whales <- c(21, 22, 44, 49, 53, 56, 185, 356, 383, 531, 543, 723, 
                     2246, 2249, 2255, 2259, 2261, 2356, 2362, 2440, 2441)
 
 # add a new column 'sounders' with the three possible values
 data <- data %>%
   mutate(sounders = case_when(
-    whale_identifier %in% sounder_whales ~ "y",          # If a sounder whale, mark as 'y'
-    is.na(whale_identifier) | whale_identifier == "" ~ "u", # If unknown, mark as 'u'
-    TRUE ~ "n"                                          # Otherwise, mark as 'n'
+    whale_identifier %in% sounder_whales ~ "y",           # If a sounder whale, mark as 'y'
+    is.na(whale_identifier) | whale_identifier == "unknown" ~ "u", # If unknown, mark as 'u'
+    TRUE ~ "n"                                           # Otherwise, mark as 'n'
   ))
 
 # write out
 #write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_identified.csv", row.names = FALSE)
 
+```
+
+## pie chart of sounder status breakdown in this sightings grouping
+### 87.5% of the sightings in this dataset are of confirmed sounders sightings (fix labels)
+```{r}
+
+# make sure your years, months, quads are being treated like characters, not numbers
+data$year <- as.character(data$year)
+data$month <- as.character(data$month)
+data$quad <- as.character(data$quad)
+
+# summarize the data to get the count of each 'sounders' category
+sounders_summary <- data %>%
+  group_by(sounders) %>%
+  summarize(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100,  # Calculate percentages
+         label = paste0(sounders, ": ", round(percentage, 1), "%")) # Create labels
+
+# Create the pie chart
+ggplot(sounders_summary, aes(x = "", y = count, fill = sounders)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  theme_void() + # Remove axes for a clean pie chart
+  geom_text(aes(label = label), position = position_stack(vjust = 0.05)) +
+  labs(title = "Sounder Status") +
+  theme(legend.title = element_blank())
 
 ```
 
+## counts by sounder status
+### clearer picture of the breakdown - for knowledge not presentation
+```{r}
 
-# Network Centrality Analysis
+ggplot(data, aes(x = sounders)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Distribution of Whales by Sounder Status", x = "Sounder Status", y = "Count")
+
+
+```
+
+## seasonal variation of whales in the area
+### even in the off-season they are still the most dominant - this is a nice check to ensure our data has been cleaned and structured properly.
+```{r}
+
+ggplot(data, aes(x = season, fill = sounders)) +
+  geom_bar(position = "stack") +
+  labs(title = "Seasonal Whale Sightings by Sounder Status", x = "Season", y = "Count")
+
+
+```
+
+## sighting trends
+### this is from the subset of sightings data that have comments (2742 sightings out of over 8700 total)
+```{r}
+
+ggplot(data, aes(x = year, y = ..count.., group = sounders, color = sounders)) +
+  geom_line(stat = "count") +
+  labs(title = "Yearly Trends in Whale Sightings", x = "Year", y = "Count")
+
+```
+
+# Network Analysis (lat/ long)
 ## code adjusted/ updated/ fixed with ChatGPT; complete titles and explanations will follow in the next day or two
-
 ```{r}
 
 library(dplyr)
+library(igraph)
+library(ggplot2)
+library(ggmap)
+library(tidyr)
+library(purrr)
+
+# STEP 1: Data Preparation
+# Filter necessary columns
+whale_subset <- data %>%
+  select(whale_identifier, sounders, lat, long, sightDate) %>%
+  drop_na() # Remove rows with missing data
+
+# Identify co-occurrences: Whales spotted at the same location on the same day
+co_occurrences <- whale_subset %>%
+  group_by(lat, long, sightDate) %>%
+  summarize(whales = list(whale_identifier), sounders = list(unique(sounders))) %>%
+  ungroup()
+
+# STEP 2: Build the Network Graph (Robust Fix)
+# Filter groups with at least 2 whales and generate edges
+edges <- co_occurrences %>%
+  rowwise() %>%  # Ensure operations are performed row-wise
+  filter(length(whales) > 1) %>%  # Keep only groups with more than one whale
+  mutate(edges = list(as.data.frame(t(combn(whales, 2))))) %>%  # Generate combinations as data frame
+  unnest(edges) %>%  # Expand the combinations into rows
+  rename(from = V1, to = V2)  # Rename the columns for clarity
+
+# Create graph object
+network_graph <- graph_from_data_frame(edges, directed = FALSE)
+
+
+# STEP 3: Analyze Spatial Trends
+# Identify clusters in feeding locations
+location_clusters <- whale_subset %>%
+  group_by(lat, long) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+# Plot feeding locations with trends over time
+ggplot(location_clusters, aes(x = long, y = lat, size = count)) +
+  geom_point(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Frequent Feeding Locations", x = "Longitude", y = "Latitude")
+
+# STEP 4: Visualize the Network
+# Plot the network graph
+plot(network_graph, vertex.size = 10, vertex.label.cex = 0.7,
+     main = "Network Map of Whale Sightings")
+
+
+```
+## trying to simplify this using only ID'd sounders
+```{r}
+
+library(tidygraph)
+library(ggraph)
+library(dplyr)
 library(tidyr)
 
-# Filter for valid whales (exclude "unknown")
-filtered_data <- data %>%
-  filter(whale_identifier != "unknown")
+# Filter for sounder whales only
+sounder_data <- data %>%
+  filter(sounders == "y")  # Keep only whales marked as sounders
 
-# Create co-occurrence pairs
-co_occurrence <- filtered_data %>%
-  group_by(sightDate, time, lat, long) %>%
-  summarize(whale_list = list(whale_identifier), .groups = "drop") %>%
-  unnest(whale_list) %>%
-  tidyr::crossing(item2 = whale_list) %>%
-  filter(whale_list != item2) %>% # Remove self-loops
-  group_by(whale_list, item2) %>%
-  summarize(count = n(), .groups = "drop")
+# Group by location and date to identify co-occurrences
+co_occurrences <- sounder_data %>%
+  group_by(lat, long, sightDate) %>%
+  summarize(whales = list(whale_identifier), .groups = "drop")  # Group whales by sighting
 
-# Inspect the co-occurrence data
-print(co_occurrence)
+# Generate edges: Create pairs of whales sighted together
+edges <- co_occurrences %>%
+  rowwise() %>%  # Process each group individually
+  filter(length(whales) > 1) %>%  # Only include groups with at least 2 whales
+  mutate(edge_pairs = list(as.data.frame(t(combn(unlist(whales), 2))))) %>%  # Generate pairs
+  unnest(edge_pairs) %>%  # Expand the pairs into rows
+  rename(from = V1, to = V2)  # Rename columns for clarity
 
-```
-
-```{r}
-
-library(igraph)
-
-# Create a graph object
-graph <- graph_from_data_frame(co_occurrence, directed = FALSE)
-
-# Inspect the graph
-print(graph)
-
-```
-
-```{r}
-
-# Calculate centrality measures
-degree_centrality <- degree(graph, mode = "all")
-betweenness_centrality <- betweenness(graph, directed = FALSE)
-eigen_centrality <- eigen_centrality(graph)$vector
-
-# Combine centrality metrics into a data frame
-centrality_metrics <- data.frame(
-  Whale = V(graph)$name,
-  Degree = degree_centrality,
-  Betweenness = betweenness_centrality,
-  Eigenvector = eigen_centrality
+# Create nodes: Extract unique whales from the edges
+nodes <- data.frame(
+  name = unique(c(edges$from, edges$to)),  # Unique whale identifiers from edges
+  stringsAsFactors = FALSE
 )
 
-# View the centrality metrics
-print(centrality_metrics)
+# Create a tidygraph object from edges and nodes
+network_graph <- tbl_graph(
+  edges = edges,  # Edge list
+  nodes = nodes,  # Node list
+  directed = FALSE  # Undirected graph
+)
+
+# Plot the network using ggraph
+ggraph(network_graph, layout = "fr") +
+  geom_edge_link(aes(alpha = 0.5), show.legend = FALSE) +  # Edges
+  geom_node_point(aes(color = "green"), size = 6, show.legend = FALSE) +  # Nodes
+  geom_node_text(aes(label = name), repel = TRUE) +  # Labels
+  theme_void() +
+  labs(title = "Sounder Whale Network Graph")
 
 ```
 
+#API Key for the maps
 ```{r}
 
-# Scale node size by degree centrality
-V(graph)$size <- degree_centrality * 2
+#register_stadiamaps("1046a78e-35c1-44a7-8313-d79de394c168", write= TRUE)
 
-# Scale node color by eigenvector centrality
-V(graph)$color <- ifelse(eigen_centrality > median(eigen_centrality), "red", "blue")
+```
 
-# Visualize the graph
-plot(
-  graph,
-  vertex.label.cex = 0.8,
-  vertex.size = V(graph)$size,
-  vertex.color = V(graph)$color,
-  edge.arrow.size = 0.5,
-  main = "Whale Social Network (Node Size = Degree, Color = Eigenvector)"
+
+## trying to enhance the graph
+### ok start, not the best but in the right direction
+```{r}
+
+library(ggplot2)
+library(ggraph)
+library(tidygraph)
+library(ggmap)
+library(dplyr)
+
+# Add latitude and longitude to the nodes data frame
+nodes <- nodes %>%
+  left_join(data %>% select(whale_identifier, lat, long),
+            by = c("name" = "whale_identifier"))
+
+bbox <- c(
+  left = min(nodes$long, na.rm = TRUE) - 0.5,
+  bottom = min(nodes$lat, na.rm = TRUE) - 1,
+  right = max(nodes$long, na.rm = TRUE) + 1,
+  top = max(nodes$lat, na.rm = TRUE) + 1
 )
+
+print(bbox)
+
+# Download a base map
+base_map <- get_stadiamap(
+  bbox = bbox,
+  zoom = 10,  # Adjust zoom as needed
+  maptype = "stamen_terrain"  # Choose map type: "terrain", "toner", etc.
+)
+
+# Prepare edges for map overlay
+edges <- edges %>%
+  left_join(nodes %>% rename(from_lon = long, from_lat = lat), by = c("from" = "name")) %>%
+  left_join(nodes %>% rename(to_lon = long, to_lat = lat), by = c("to" = "name"))
+
+# fixing the many-to-many warning
+# Check for duplicates in the nodes data frame
+duplicates_in_nodes <- nodes %>%
+  group_by(name) %>%
+  summarize(count = n()) %>%
+  filter(count > 1)
+
+nodes <- nodes %>%
+  distinct(name, .keep_all = TRUE)
+
+# Check for duplicate edges
+duplicates_in_edges <- edges %>%
+  group_by(from, to) %>%
+  summarize(count = n()) %>%
+  filter(count > 1)
+
+edges <- edges %>%
+  distinct(from, to, .keep_all = TRUE)
+
+edges <- edges %>%
+  left_join(nodes %>% rename(from_lon = long, from_lat = lat), by = c("from" = "name")) %>%
+  left_join(nodes %>% rename(to_lon = long, to_lat = lat), by = c("to" = "name"))
+
+edges <- edges %>%
+  rename(
+    from_lon = from_lon.x,
+    from_lat = from_lat.x,
+    to_lon = to_lon.x,
+    to_lat = to_lat.x
+  )
+
+
+# Plot the map with network overlay
+first_map<- ggmap(base_map) +
+  geom_segment(data = edges, aes(x = from_lon, y = from_lat, xend = to_lon, yend = to_lat),
+               color = "black", alpha = 0.5) +
+  geom_point(data = nodes, aes(x = long, y = lat), color = "red", size = 4) +
+  geom_text(data = nodes, aes(x = long, y = lat, label = name), hjust = -0.2, size = 3) +
+  theme_minimal() +
+  labs(title = "Sounder Whale Network on Map",
+       x = "Longitude", y = "Latitude")
+
+print(first_map)
+
+ggsave(filename = "/Users/cmantegna/Documents/GitHub/sicb_dp/output/sounder_network.png", plot = first_map, width = 12, height = 10, dpi = 300)
+
+```
+
+## chord diagram
+### parameters aren't playing nice, but it does show the clustering of whales who may or may not hang out together
+```{r}
+
+library(circlize)
+
+# Filter for sounder whales only
+sounder_data <- data %>%
+  filter(sounders == "y")
+
+# Aggregate visits by whale and location
+whale_location <- sounder_data %>%
+  group_by(whale_identifier, lat, long) %>%
+  summarize(visits = n(), .groups = "drop")
+
+# Create a location label
+whale_location <- whale_location %>%
+  mutate(location = paste0("(", round(lat, 2), ", ", round(long, 2), ")"))
+
+# Format for chord diagram
+# Filter for top locations or whales by visit frequency
+# Combine rare locations into "Other"
+threshold <- 5  # Define a threshold for significance
+edges <- edges %>%
+  mutate(to = ifelse(value < threshold, "Other", to))
+
+edges <- edges %>%
+  group_by(from) %>%
+  top_n(n = 10, wt = value) %>%  # Keep top 10 connections per whale
+  ungroup()
+
+# Assign colors to whales and locations
+whale_colors <- setNames(colorRampPalette(c("blue", "green"))(length(unique(edges$from))), unique(edges$from))
+location_colors <- setNames(colorRampPalette(c("red", "orange"))(length(unique(edges$to))), unique(edges$to))
+
+# Combine colors
+grid.col <- c(whale_colors, location_colors)
+
+# Plot the chord diagram
+chordDiagram(edges, grid.col = grid.col, annotationTrack = "grid", preAllocateTracks = 3)
+
+# Add sector labels
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  circos.text(
+  CELL_META$xcenter, CELL_META$ylim[1] + 1.5,
+  CELL_META$sector.index, facing = "clockwise", niceFacing = TRUE,
+  adj = c(0, 0.5), cex = 0.7  # Decrease text size
+)
+
+}, bg.border = NA)
+
+# Add legend for whales and locations
+legend("topright", legend = c(names(whale_colors), names(location_colors)),
+       fill = c(whale_colors, location_colors), title = "Legend")
+
 
 ```
 

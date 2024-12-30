@@ -1,0 +1,253 @@
+---
+title: EDA 00.2: All Whales w/ Sounder designator Data Prep & Exploration
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+
+## only working with the Sounders' data in this markdown file
+
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+#data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned_sep.csv")
+data2 <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/data_cleaned.csv")
+
+```
+
+# Data cleaning
+
+## NOTE: this process only needs to be completed again if you are starting with a new baseline data file. The steps below are the process to complete the tasks listed above each block - we write out the files to "\~/output/data_adjusted/filename.csv" so that we don't have to keep doing these steps.
+
+## clean up the df, fill in the empty data points, fix variation in capitalization of comments, channel & source
+
+```{r}
+
+# before importing the data, I changed all column names (for columns we're going to use) to lowercase or camelcase because I hate remembering to capitalize when I don't have to.
+
+# remove the columns we're not going to use
+columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction", "reportingParty")
+data <- data %>% select(-all_of(columns_to_drop))
+
+# take care of the empties with predetermined values
+data$time[data$time == ""] <- "0:00"
+data$count[data$count == ""] <- 1
+data$count[is.na(data$count)] <- 1
+data$channel[data$channel == ""] <- "unknown"
+data$source[data$source == ""] <- "unknown"
+
+# fix variable names in the channel and source columns. 
+# since both uppercase and lowercase are used, they will be treated as unique cases, this step stops that from happening. The 'dplyr' package does this.
+data <- data %>%
+  mutate(channel = tolower(channel),
+         source = tolower(source),
+         comments = tolower(comments))
+
+# check your work & then write out the new df as a safety stop
+head(data)
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned.csv", row.names = FALSE)
+
+```
+
+## format sightDate and pull out the month from the date
+
+```{r}
+
+# convert SightDate to date format and extract the month
+data <- data %>%
+  mutate(sightDate = as.Date(sightDate, format = "%m/%d/%y"),
+         month = format(sightDate, "%m"))
+         
+```
+
+## add a season column
+
+```{r}
+
+# create a season column
+data <- data %>%
+  mutate(season = case_when(
+    month(sightDate) %in% c(12, 1, 2) ~ "winter",
+    month(sightDate) %in% c(3, 4, 5) ~ "spring",
+    month(sightDate) %in% c(6, 7, 8) ~ "summer",
+    month(sightDate) %in% c(9, 10, 11) ~ "fall"
+  ))
+
+# fix the missing (-) on the long values; i think i removed them with a formatting process.
+data <- data %>%
+  mutate(long = paste0("-", long))
+
+# double check your work and save it - safety stop; the file name is to help me keep track of what was saved at which step
+head(data)
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
+
+```
+
+## list identified whales from the comment column, make a new column
+```{r}
+
+# pull out the unique whale identifiers from the `comments` column
+# all the different formats: whole numbers, formatted identifiers like #21, crc-21, cr21, id21, nps21, and words
+unique_identifiers <- unique(str_extract_all(data$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") %>% unlist())
+
+# check your work
+print(unique_identifiers)
+
+# there shouldn't be an "r383" in the tablem so we will replace it properly
+data <- data %>%
+  mutate(comments = str_replace_all(comments, "\\br383\\b", "383"))
+
+# there shouldn't be a lone "2", so find it and figure out what it should be
+rows_with_2 <- data %>% 
+  filter(str_detect(comments, "\\b2\\b"))
+
+print(rows_with_2)
+
+#fixing the 2; it is a misplaced comma that is cutting 2 unique identifiers into 3 whales.
+data <- data %>%
+  mutate(comments = str_replace_all(comments, "\\b2,356,185\\b", "2356, 185"))
+
+# r-run the unique identifiers code at the beginning of this chunk to verify changes and look for any additional errors.
+
+```
+
+## change the df to reflect sightings and counts of identified whales
+```{r}
+
+# we are pulling the unique IDs out, making them their own row, and ensuring we don't inflate the count of whales. To make sure it is correct, we should see our total whale count remain at 2742. Any deviation indicates an error in changing the df. This is ChatGPT code.
+
+# pull out all identifiers
+all_identifiers <- str_extract_all(data$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") 
+
+# Add a new column that splits `comments` into a list of identifiers
+data <- data %>%
+  mutate(identifiers = str_split(comments, ",\\s*"))
+
+# Unnest rows to create one row per identifier
+expanded_data <- data %>%
+  unnest(identifiers) %>%
+  mutate(
+    identifiers = trimws(identifiers), # Remove extra spaces
+    identifiers = if_else(
+      str_detect(identifiers, "^(\\d+|unknown)$"), 
+      identifiers, 
+      "unknown" # Keep only whole numbers and 'unknown'
+    )
+  )
+
+# Group by all columns except `count` and adjust `count` for multiple identifiers
+final_data <- expanded_data %>%
+  group_by(across(-c(count, identifiers))) %>% # Group by all other columns
+  mutate(
+    count = if_else(identifiers == "unknown", count - sum(identifiers != "unknown"), 1)
+  ) %>%
+  ungroup() %>%
+  rename(whale_identifier = identifiers) # Rename `identifiers` to `whale_identifier`
+
+
+# write out the updated dataset to a new file
+write.csv(final_data,"/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_added_rows.csv", row.names = FALSE)
+
+```
+
+
+# EDA
+
+## total count of Sounders sighted: 2742
+## total count of identified Sounders sighted in the adjusted df is 2746 - we have gained 4 whales and I don't know where. I will do some digging in the background to pull them out. For now, we will continue as if they don't exist.
+```{r}
+
+# total number of sounders sighted from 2013 - 2023
+# save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
+
+total_count <- sum(data$count, na.rm = TRUE)
+print(paste("Total Whale Count:", total_count))
+
+```
+
+## count by year
+## 2018, 2019 and 2022 are the top years for Sounders' sightings with 445, 430 and 413 respectively
+```{r}
+
+yearly_counts <- data %>%
+  group_by(year) %>%
+  summarise(yearlyCount = sum(count, na.rm = TRUE))
+
+# print
+print(yearly_counts)
+
+```
+
+## count by month
+## April and March are the most visited months, 1011 and 866 sightings respectively.
+```{r}
+
+# total number of whales counted per month regardless of year
+
+monthly_counts <- data %>%
+  group_by(month) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE))
+
+print(monthly_counts)
+
+```
+
+## count by season
+## Spring is the big visiting season by far with 2217 sightings.
+```{r}
+
+# group by season
+seasonal_counts <- data %>%
+  group_by(season) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE)) %>%
+  arrange(match(season, c("Winter", "Spring", "Summer", "Fall")))
+
+# print
+print(seasonal_counts)
+
+# plot seasonal trends
+library(ggplot2)
+
+ggplot(seasonal_counts, aes(x = season, y = totalCount, fill = season)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Whale Sightings by Season",
+       x = "Season",
+       y = "Total Count of Sightings") +
+  theme_minimal()
+
+```
+
+## count by quad
+## Quad 384 is the big winner by several hundered sightings
+```{r}
+
+# total number of whales counted per quad regardless of year, descending order
+quad_counts <- data %>%
+  group_by(quad) %>%
+  summarise(totalCount = sum(count, na.rm = TRUE))%>%
+  arrange(desc(totalCount))
+
+print(quad_counts)
+
+```
+

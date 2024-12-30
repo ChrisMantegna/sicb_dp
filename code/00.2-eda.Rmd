@@ -20,7 +20,9 @@ library(reader)
 ```
 
 # Load data
+
 ## working with all whales
+
 ```{r}
 
 # figure out where you are on your computer
@@ -35,11 +37,19 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 # Counts, overall
 
 ## Sounder Designation Keys
-## Whale Identifier column: none= whales with no comments to tell us who they are, unknown= comment said Sounder but no ID confirmed or reporter was unsure, ID= an identified whale that may or may not be a Sounder.
 
-## Sounder column: unknown= comment said Sounder but no ID confirmed, n= a whale with or without an ID that isn't a Sounder, y= an identified Sounder
+Whale Identifiers:\
+none= whales with no comments to tell us who they are\
+unknown= comment said Sounder but no ID confirmed or reporter was unsure\
+ID= an identified whale that may or may not be a Sounder.\
+
+Sounder column:\
+unknown= comment said Sounder but no ID confirmed\
+n= a whale with or without an ID that isn't a Sounder\
+y= an identified Sounder
 
 ### total, complete count
+
 ```{r}
 
 # total number of whales sighted from 2013 - 2023 = 8872
@@ -50,6 +60,7 @@ print(paste("Total Whale Count:", total_count))
 ```
 
 ### total, count breakdown by Sounder status
+
 ```{r}
 
 # total number breakdown: 2327 Sounders, 293 unknown, 6252 non-Sounders
@@ -64,6 +75,7 @@ print(counts_by_sounder)
 ```
 
 ### total, count breakdown by whale identifier
+
 ```{r}
 
 # 22 and 53 (Earhart & Little Patch are seen the most); remaining data in the table below
@@ -78,6 +90,7 @@ print(counts_by_whale)
 ```
 
 ### counts, excluding unidentified whales
+
 ```{r}
 
 # histogram of sightings, just to help visualize the table above (25 of the 58 identified whales were only seen once... worth investigation if there's time)
@@ -106,6 +119,7 @@ ggplot(sightings_per_whale, aes(x = sightings_count)) +
 ```
 
 ### proportion of sightings under 10 per whale
+
 ```{r}
 
 # calculate proportion of whales with sightings under 10 = 58.62%. More than half of the ID'd whales were seen less than 10 times in 10 years.
@@ -119,6 +133,7 @@ print(paste("Proportion of whales with sightings under 10:", round(proportion_un
 ```
 
 ### sightings stats
+
 ```{r}
 
 # compute basic stats on sightings count
@@ -152,6 +167,7 @@ print(quartiles)
 ```
 
 ## Sounder confirmed & unknown sighting plot by whale for 10y span
+
 ```{r}
 
 library(dplyr)
@@ -192,8 +208,10 @@ for (whale in unique_whales) {
 
 ```
 
-# Annual plots 
+# Annual plots
+
 ## number of sounders sightings by whale
+
 ```{r}
 
 library(dplyr)
@@ -236,6 +254,7 @@ for (year in unique_years) {
 ```
 
 ## table of sightings by year, cumulative sounder counts
+
 ```{r}
 
 # Group data by year and sounder and count sightings
@@ -250,6 +269,7 @@ print(sightings_by_year)
 ```
 
 ## line plot of sightings by year - this is in eda 00.1 as well
+
 ```{r}
 
 library(ggplot2)
@@ -271,7 +291,9 @@ ggplot(sightings_by_year, aes(x = year, y = sightings_count, color = sounders, g
 ```
 
 ## stacked bar of sightings by year
+
 ### this can be cleaned up, and re-ordered. i think this is great for an overview going into the Sounders data
+
 ```{r}
 
 # Ensure data includes whale_identifier counts by year
@@ -296,6 +318,7 @@ ggplot(sightings_by_year_whale, aes(x = year, y = sightings_count, fill = whale_
 ```
 
 ## table of sightings by month regardless of year, cumulative sounder counts
+
 ```{r}
 
 # Group data by month and sounder and count sightings
@@ -309,6 +332,3 @@ print(sightings_by_month)
 
 
 ```
-
-
-

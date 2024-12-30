@@ -21,6 +21,7 @@ library(reader)
 
 # Load data
 ## working with all whales
+## NOTE: Sightings data is from January 1, 2013 - December 31, 2023 but data recorded from TMW ends at April 1, 2023.
 ```{r}
 
 # figure out where you are on your computer
@@ -35,6 +36,10 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 # Sightings Source/ Reporters
 ## channel
 ```{r}
+
+# filter out 'none' and 'unknown' whales
+filtered_data <- data %>%
+  filter(!whale_identifier %in% c("none", "unknown"))
 
 # Summarize counts for each channel
 channel_summary <- filtered_data %>%
@@ -60,7 +65,6 @@ ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
 ```
 
 ## source
-### fix data source names
 ```{r}
 
 # Summarize counts for each source
@@ -86,7 +90,118 @@ ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
 ```
 
 # Temporal Scale
+## monthly breakdown of reliable v public sightings regardless of year
 ```{r}
 
+# Summarize sightings by month and source
+monthly_summary <- filtered_data %>%
+  group_by(month, source) %>%
+  summarise(sightings_count = n(), .groups = "drop")
+
+# Stacked bar plot: Reliable vs Public by month over 10 years
+ggplot(monthly_summary, aes(x = month, y = sightings_count, fill = source)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Reliable vs Public Sightings (Month by Month) Over 10 Years",
+    x = "Month",
+    y = "Number of Sightings",
+    fill = "Source"
+  ) +
+  scale_x_discrete(limits = sprintf("%02d", 1:12), labels = month.abb) +  # Use month abbreviations
+  theme_minimal()
+
+
+
 ```
+
+## sightings by year, reliable v public
+```{r}
+
+# Summarize sightings by year, month, and source
+yearly_summary <- filtered_data %>%
+  group_by(year, month, source) %>%
+  summarise(sightings_count = n(), .groups = "drop")
+
+# Facet-wrapped stacked bar plots
+ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = source)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Reliable vs Public Sightings by Year",
+    x = "Month",
+    y = "Number of Sightings",
+    fill = "Source"
+  ) +
+  scale_x_discrete(limits = sprintf("%02d", 1:12), labels = month.abb) +  # Use month abbreviations
+  theme_minimal() +
+  facet_wrap(~ year, ncol = 3)  # Adjust columns as needed
+
+
+
+```
+
+## time of day breakdown
+## Time categories:\
+Not recorded= 0:00 or 9:99
+Morning= times between 0:01 - 9:59
+Midday= times between 10:00 - 16:59
+Evening= times between 17:00 - 20:59
+Night- times between 21:00 - 23:59
+```{r}
+
+library(dplyr)
+
+# Convert time to POSIXct for proper comparison
+data <- data %>%
+  mutate(
+    time_clean = ifelse(time == "9:99" | time == "0:00", NA, paste0(time, ":00")), # Fix missing seconds
+    time_parsed = as.POSIXct(time_clean, format = "%H:%M:%S", tz = "UTC"),
+    time_of_day = case_when(
+      is.na(time_parsed) ~ "Not recorded",                       # Handle NA times
+      time_parsed >= as.POSIXct("00:00:01", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("05:59:59", format = "%H:%M:%S") ~ "Early Morning",  # 0:01 to 5:59
+      time_parsed >= as.POSIXct("06:00:00", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("09:59:59", format = "%H:%M:%S") ~ "Late Morning",  # 6:00 to 9:59
+      time_parsed >= as.POSIXct("10:00:00", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("16:59:59", format = "%H:%M:%S") ~ "Midday",   # 10:00 to 16:59
+      time_parsed >= as.POSIXct("17:00:00", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("20:59:59", format = "%H:%M:%S") ~ "Evening",  # 17:00 to 20:59
+      time_parsed >= as.POSIXct("21:00:00", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("23:59:59", format = "%H:%M:%S") ~ "Night",    # 21:00 to 23:59
+      TRUE ~ "Not recorded"                                    # Catch any remaining cases
+    )
+  ) %>%
+  select(-time_clean, -time_parsed)  # Drop intermediate columns if no longer needed
+
+# View the updated dataset
+head(data)
+
+
+```
+
+## counts by time of day
+### based on the general results below, I'm going to break morning into two groups to clarify since the results are as follows\
+Evening & Night = 0 sightings\
+Morning= 5324\
+Midday= 551\
+Not recorded= 1201\
+```{r}
+
+# the shift to early v late morning breakdown shows an interesting trend; most sightings are between 12:01am - 5:59am
+library(tidyr)
+
+# Define all possible time_of_day categories
+all_time_of_day <- c("Early Morning", "Late Morning", "Midday", "Evening", "Night", "Not recorded")
+
+# Summarize total sightings by time_of_day, including times with 0 sightings
+sightings_by_time_of_day <- data %>%
+  group_by(time_of_day) %>%
+  summarise(total_sightings = n(), .groups = "drop") %>%
+  complete(time_of_day = all_time_of_day, fill = list(total_sightings = 0))
+
+# View the summary
+print(sightings_by_time_of_day)
+
+
+```
+
 

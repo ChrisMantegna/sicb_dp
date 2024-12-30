@@ -35,51 +35,64 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 
 # Temporal Visualization
 ## line chart for sightings by year
+### clean up the labels manually using powerpoint/ google slides and this should go into your presentation. Essentially remove the labels and title by covering them with white blocks; make the title of the table the slide title, and replace the text with easier to read font/ size. group the image & changes together so that nothing moves out of place if you adjust it.
 ```{r}
 
 library(ggplot2)
 
-# Summarize sightings by year
+# make sure your years, months, quads are being treated like characters, not numbers
+data$year <- as.character(data$year)
+data$month <- as.character(data$month)
+data$quad <- as.character(data$quad)
+
+# summarize sightings by year
 sightings_by_year <- data %>%
   group_by(year) %>%
   summarize(total_sightings = sum(count))
 
-# Create a line chart
-ggplot(sightings_by_year, aes(x = year, y = total_sightings)) +
+# create a line chart 
+ggplot(sightings_by_year, aes(x = year, y = total_sightings, group = 1)) +
   geom_line() +
   geom_point() +
   ggtitle("Sightings Count Over Years") +
   xlab("Year") +
   ylab("Total Sightings") +
-  theme_minimal()
+  theme_minimal() +
+  scale_x_discrete() 
 
 ```
 
 ## heatmap of sightings by month and year
+### interesting but not presentation- level interesting; this confirms what we see in the data, so that makes it a nice check 
 ```{r}
 
-# Summarize sightings by month and year
+# make `month` a factor with levels 1 to 12
+data$month <- factor(data$month, levels = as.character(1:12))
+
+# summarize sightings by month and year
 sightings_heatmap <- data %>%
   group_by(year, month) %>%
   summarize(total_sightings = sum(count))
 
-# Create a heatmap
-ggplot(sightings_heatmap, aes(x = factor(month), y = factor(year), fill = total_sightings)) +
+# create the heatmap
+ggplot(sightings_heatmap, aes(x = month, y = factor(year), fill = total_sightings)) +
   geom_tile() +
   scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Sightings") +
   ggtitle("Heatmap of Sightings by Month and Year") +
   xlab("Month") +
   ylab("Year") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 
 ```
 
 ## polar chart sightings by season
+### I thought this could be fun - i wasn't expecting the spring to sooooo heavily skew the plot
 ```{r}
 
 # Summarize sightings by season
-sightings_by_season <- final_data %>%
+sightings_by_season <- data %>%
   group_by(season) %>%
   summarize(total_sightings = sum(count))
 
@@ -96,7 +109,7 @@ ggplot(sightings_by_season, aes(x = season, y = total_sightings, fill = season))
 ```
 
 ## count by season and year
-## I'm a sucker for a wrapped plot...
+### I'm a sucker for a wrapped plot. It's the full 10 years in a single view - too much for a presenation, but can be split up.
 ```{r}
 
 library(ggplot2)
@@ -122,52 +135,397 @@ ggplot(seasonal_counts_by_year, aes(x = season, y = totalCount, fill = season)) 
 
 ```
 
-
-
-## 'map' of sightings
-
+## seasonality for top 10 whales
+### check out 2440 - this whale is interesting and doesn't appear to leave the area for long at all.
 ```{r}
 
-# plotting with lat/ long coordinates, but not overlayed on a map - just want to see what it looks like
+# Summarize sightings of each whale by season
+whale_seasonal_trends <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier, season) %>%
+  summarize(total_sightings = sum(count), .groups = "drop")
+
+# Select top whales 
+top_whales <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier) %>%
+  summarize(total_sightings = sum(count), .groups = "drop") %>%
+  arrange(desc(total_sightings)) %>%
+  slice_head(n = 10)
+
+# Filter seasonal trends for top whales
+top_whale_seasonal <- whale_seasonal_trends %>%
+  filter(whale_identifier %in% top_whales$whale_identifier)
+
+# Create a faceted plot for seasonality
+ggplot(top_whale_seasonal, aes(x = season, y = total_sightings, fill = season)) +
+  geom_col() +
+  facet_wrap(~whale_identifier, scales = "free_y") +
+  ggtitle("Seasonal Sightings for Top Whales") +
+  xlab("Season") +
+  ylab("Total Sightings") +
+  theme_minimal() +
+  theme(
+    legend.position = "none", # Remove legend for simplicity
+    axis.text.x = element_text(angle = 45, hjust = 1) # Rotate x-axis labels
+  )
+
+```
+
+## monthly trends for the top 10
+### again - check out 2440. this whale is only 'gone' in october and november...
+```{r}
+
+# Summarize sightings of each whale by month
+whale_monthly_trends <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier, month) %>%
+  summarize(total_sightings = sum(count), .groups = "drop")
+
+# Select top 10 whales by total sightings
+top_whales <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier) %>%
+  summarize(total_sightings = sum(count), .groups = "drop") %>%
+  arrange(desc(total_sightings)) %>%
+  slice_head(n = 10)
+
+# Filter monthly trends for top whales
+top_whale_monthly <- whale_monthly_trends %>%
+  filter(whale_identifier %in% top_whales$whale_identifier)
+
+# Ensure months are ordered correctly
+top_whale_monthly$month <- factor(top_whale_monthly$month, levels = as.character(1:12))
+
+# Create a faceted plot for monthly trends
+ggplot(top_whale_monthly, aes(x = month, y = total_sightings, fill = month)) +
+  geom_col() +
+  facet_wrap(~whale_identifier, scales = "free_y") +
+  ggtitle("Monthly Sightings for Top 10 Whales") +
+  xlab("Month") +
+  ylab("Total Sightings") +
+  theme_minimal() +
+  theme(
+    legend.position = "none", # Remove legend for simplicity
+    axis.text.x = element_text(angle = 45, hjust = 1) # Rotate x-axis labels
+  )
+
+```
+
+
+# Geographic Visualization
+## scatterplot base for future mapping
+```{r}
 
 library(ggplot2)
 
-ggplot(data, aes(x = long, y = lat, color = whale_identifiers)) +
-  geom_point(alpha = 0.6) +
-  labs(title = "Map of Whale Sightings", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
-  theme_minimal() +
-  theme(legend.position = "right")
+# Scatter plot for geographic distribution
+ggplot(data, aes(x = long, y = lat)) +
+  geom_point(alpha = 0.5, size = 2) +
+  ggtitle("Geographic Distribution of Sightings") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme_minimal()
 
 ```
 
-## timeline of sightings
-
+## density of sightings' locations (confirms the scatterplot locations above and can be overlayed on a map)
 ```{r}
 
-# convert sightDate to Date format (if it wasn't done earlier)
-#timeline_data$sightDate <- as.Date(timeline_data$sightDate, format = "%m/%d/%y")
-
-ggplot(timeline_data, aes(x = sightDate, y = whale_identifiers)) +
-  geom_point(aes(color = whale_identifiers), alpha = 0.6) +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  labs(title = "Timeline of Whale Sightings", x = "Date", y = "Whale Identifiers", color = "Whale Identifiers") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# density plot for sightings concentration
+ggplot(data, aes(x = long, y = lat)) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.5) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  ggtitle("Density of Sightings by Location") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme_minimal()
 
 ```
 
-## movement patterns
-
+# Individual Whale Trends
+## top 10 most seen
 ```{r}
 
-# Sort by identifiers and date
-timeline_data <- timeline_data[order(timeline_data$whale_identifiers, timeline_data$sightDate), ]
+top_whales <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier) %>%
+  summarize(total_sightings = sum(count)) %>%
+  arrange(desc(total_sightings)) %>%
+  head(10)
 
-ggplot(timeline_data, aes(x = long, y = lat, group = whale_identifiers, color = whale_identifiers)) +
-  geom_path(alpha = 0.6) +
-  geom_point(alpha = 0.6) +
-  labs(title = "Movement Patterns of Identifiable Whales", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
+ggplot(top_whales, aes(x = reorder(whale_identifier, total_sightings), y = total_sightings)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  ggtitle("Top 10 Most Sighted Whales") +
+  xlab("Whale Identifier") +
+  ylab("Total Sightings") +
+  theme_minimal()
+
+```
+
+## known v unknown (unconfirmed or missing identifier)
+### interesting to know almost 90% of sounder IDs are correct and corraborated. We know from the EDA work that there are 58 unique whales and the category of 'unknown' for a total of 59 unique ID catefories.
+```{r}
+
+library(ggplot2)
+
+# proportion of unique whales vs unknown
+whale_proportions <- data %>%
+  mutate(category = if_else(whale_identifier == "unknown", "Unknown", "Identified")) %>%
+  group_by(category) %>%
+  summarize(total_sightings = sum(count))
+
+# percentages
+whale_proportions <- whale_proportions %>%
+  mutate(percentage = total_sightings / sum(total_sightings) * 100)
+
+# Create a pie chart with percentages
+ggplot(whale_proportions, aes(x = "", y = total_sightings, fill = category)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette = "Set2") +
+  ggtitle("Proportion of Unique Whales vs. Unknown") +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(axis.title.x = element_blank(),  # Remove X-axis title
+        axis.title.y = element_blank(),  # Remove Y-axis title
+        axis.text = element_blank(),     # Remove axis text
+        axis.ticks = element_blank())    # Remove axis ticks
+
+
+```
+
+## sightings over time for each ID'd whale (change the plot code to whichever identifier you want)
+```{r}
+
+library(ggplot2)
+
+data$year <- as.character(data$year)
+
+# summarize sightings of each whale by year
+whale_yearly_trends <- data %>%
+  filter(whale_identifier != "unknown") %>% # exclude unknown whales
+  group_by(whale_identifier, year) %>%
+  summarize(total_sightings = sum(count), .groups = "drop")
+
+# Plot for a single whale (e.g., whale "383")
+ggplot(whale_yearly_trends %>% filter(whale_identifier == "383"),
+       aes(x = year, y = total_sightings, group = 1)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Sightings Over Time for Whale 383") +
+  xlab("Year") +
+  ylab("Total Sightings") +
+  theme_minimal() +
+  scale_x_discrete() 
+
+
+```
+
+## compare whales
+### expand this visual out and let me know what you want to see out of it - it is very interesting.
+```{r}
+
+# top 10 most sighted whales
+top_whales <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier) %>%
+  summarize(total_sightings = sum(count), .groups = "drop") %>%
+  arrange(desc(total_sightings)) %>%
+  slice_head(n = 10)
+
+# Filter yearly trends for top whales
+top_whale_trends <- whale_yearly_trends %>%
+  filter(whale_identifier %in% top_whales$whale_identifier)
+
+# Plot trends for top whales using facets
+ggplot(top_whale_trends, aes(x = year, y = total_sightings, color = whale_identifier, group = 1)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~whale_identifier, scales = "free_y") +
+  ggtitle("Sightings Over Time for Top  10 Whales") +
+  xlab("Year") +
+  ylab("Total Sightings") +
+  theme_minimal()+
+  scale_x_discrete()
+
+
+```
+
+## plotting the same data as above on a single plot
+```{r}
+
+# top 10 most sighted whales
+top_whales <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(whale_identifier) %>%
+  summarize(total_sightings = sum(count), .groups = "drop") %>%
+  arrange(desc(total_sightings)) %>%
+  slice_head(n = 10)
+
+# Filter yearly trends for top whales
+top_whale_trends <- whale_yearly_trends %>%
+  filter(whale_identifier %in% top_whales$whale_identifier)
+
+# Plot all top whales on the same chart
+ggplot(top_whale_trends, aes(x = year, y = total_sightings, color = whale_identifier, group = whale_identifier, group = 1)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  ggtitle("Sightings Over Time for Top Whales") +
+  xlab("Year") +
+  ylab("Total Sightings") +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 12), legend.text = element_text(size = 10)) +
+  scale_color_discrete(name = "Whale Identifier") + # Custom legend title
+  scale_x_discrete()
+
+
+
+```
+
+
+
+# Group Trends
+## distribution of group sizes
+## Are there groups that travel/ feed/ whatever together or do they operate solo?
+### dominantly - they are seen alone with about half as many sightings seeing an identified pair of whales.
+```{r}
+
+# count unique whales per group
+group_composition <- data %>%
+  group_by(sightDate, time, lat, long) %>% # Group by unique sighting event
+  summarize(unique_whales = n_distinct(whale_identifier)) %>%
+  ungroup()
+
+# Plot group composition distribution
+ggplot(group_composition, aes(x = unique_whales)) +
+  geom_histogram(binwidth = 1, fill = "blue", alpha = 0.7) +
+  ggtitle("Distribution of Unique Whales per Group") +
+  xlab("Number of Unique Whales") +
+  ylab("Frequency") +
+  theme_minimal()
+
+
+```
+
+## group cohesion
+## How does group composition change over time? (could also be in temporal viz)
+### no real change over time - group size leans heavily to 1 and obviously we cannot have .10 or .50 of a living whale
+```{r}
+
+data$year <- as.character(data$year)
+
+# Group size by year
+group_size_year <- data %>%
+  group_by(year) %>%
+  summarize(mean_group_size = mean(count))
+
+ggplot(group_size_year, aes(x = year, y = mean_group_size, group = 1)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Average Group Size by Year") +
+  xlab("Year") +
+  ylab("Average Group Size") +
+  theme_minimal() +
+  scale_x_discrete()
+
+```
+
+
+## What groups do we see when there are more than one traveling together?
+### this gives us something far too busy... let's downsize and look at what we can see
+```{r}
+
+#install.packages('widyr')
+library(widyr)
+library(dplyr)
+library(tidyr)
+library(igraph)
+
+# Prepare co-occurrence data frame step by step
+grouped_data <- data %>%
+  filter(whale_identifier != "unknown") %>%
+  group_by(sightDate, time, lat, long) %>%
+  summarize(whale_list = list(whale_identifier), .groups = "drop") %>%
+  unnest(whale_list)
+
+# Rename the column explicitly to match `pairwise_count` requirements
+grouped_data <- grouped_data %>%
+  rename(item = whale_list) # Rename to `item` for clarity
+
+# Manual co-occurrence calculation
+co_occurrence <- grouped_data %>%
+  group_by(item) %>%
+  mutate(dummy = 1) %>%
+  tidyr::crossing(item2 = item) %>%
+  filter(item != item2) %>%
+  group_by(item, item2) %>%
+  summarize(count = n(), .groups = "drop")
+
+# Print the manual co-occurrence matrix
+print(co_occurrence)
+
+# Create a network graph for co-occurrences
+graph <- graph_from_data_frame(co_occurrence)
+
+# Plot the network
+plot(graph, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Whale Co-occurrence Network")
+
+```
+
+### downsize co-occurence plot
+```{r}
+
+# Filter edges for strong co-occurrences
+filtered_co_occurrence <- co_occurrence %>%
+  filter(count >= 3) # Adjust threshold as needed
+
+# Create a filtered graph
+filtered_graph <- graph_from_data_frame(filtered_co_occurrence)
+
+# Plot the filtered network
+plot(filtered_graph, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Filtered Whale Co-occurrence Network")
+
+
+```
+
+### alter number of connections
+```{r}
+
+# Identify key whales based on degree (number of connections)
+key_whales <- degree(graph, mode = "all") %>%
+  sort(decreasing = TRUE) %>%
+  head(20) # Adjust to show the top N whales
+
+# Subgraph with only key whales
+key_graph <- induced_subgraph(graph, names(key_whales))
+
+# Plot the key whale subgraph
+plot(key_graph, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Key Whale Co-occurrence Network")
+
+
+```
+
+### alter graphing type
+```{r}
+
+# Use the Fruchterman-Reingold layout
+layout <- layout_with_fr(graph)
+
+# Plot the graph 
+plot(graph, layout = layout, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Improved Layout")
+
+# Use the Kamada-Kawai layout
+layout2 <- layout_with_kk(graph)
+
+# Plot the graph 
+plot(graph, layout = layout2, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Improved Layout")
+
+# Use the Large Graph Layout 
+layout3 <- layout_with_lgl(graph)
+
+# Plot the graph with the layout
+plot(graph, layout = layout3, vertex.label.cex = 0.8, edge.arrow.size = 0.5, main = "Improved Layout")
 
 ```

@@ -190,4 +190,50 @@ data <- data %>%
 
 ```
 
+# viz
+## a mapping thing
+```{r}
 
+# plotting with lat/ long coordinates, but not overlayed on a map - just want to see what it looks like
+
+library(ggplot2)
+
+ggplot(data, aes(x = long, y = lat, color = whale_identifiers)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Map of Whale Sightings", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```
+
+## timeline of sightings
+
+```{r}
+
+# convert sightDate to Date format (if it wasn't done earlier)
+#timeline_data$sightDate <- as.Date(timeline_data$sightDate, format = "%m/%d/%y")
+
+ggplot(timeline_data, aes(x = sightDate, y = whale_identifiers)) +
+  geom_point(aes(color = whale_identifiers), alpha = 0.6) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Timeline of Whale Sightings", x = "Date", y = "Whale Identifiers", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## movement patterns
+
+```{r}
+
+# Sort by identifiers and date
+timeline_data <- timeline_data[order(timeline_data$whale_identifiers, timeline_data$sightDate), ]
+
+ggplot(timeline_data, aes(x = long, y = lat, group = whale_identifiers, color = whale_identifiers)) +
+  geom_path(alpha = 0.6) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Movement Patterns of Identifiable Whales", x = "Longitude", y = "Latitude", color = "Whale Identifiers") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```

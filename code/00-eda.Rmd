@@ -1,6 +1,5 @@
-
 ---
-title: "Gray Whale EDA"
+title: EDA 00: All Gray Whale Data Prep & Exploration
 ---
 
 ```{r setup, include=FALSE}
@@ -23,6 +22,8 @@ library(ggplot2)
 ```
 
 # Data cleaning
+## NOTE: this only needs to be completed in the beginning; we save our cleaned files to prevenet doing this repeatedly. Jump to line 58 to continue the analysis with the correct cleaned df found in "~/output/data_adjusted/filename.csv".
+
 ## uniform variables and backfilling the empty cells
 ```{r}
 
@@ -57,7 +58,7 @@ data <- data %>%
 
 # EDA
 ## Counts, total
-
+### 8697 total whales sighted between 2013 - 2023
 ```{r}
 
 # total number of whales sighted from 2013 - 2023
@@ -70,9 +71,11 @@ print(paste("Total Whale Count:", total_count))
 
 
 ## Counts, monthly
+### April, March and May are the months with the most sightings (April with the most) - by a lot!
 ```{r}
 
 # total number of whales counted per month regardless of year
+# if you choose to save this as a table, ensure you use the tibble() command and include the first row as data, otherwise the months listed below will be dropped off and you will have just a count list.
 
 monthly_counts <- data %>%
   group_by(Month) %>%
@@ -83,6 +86,7 @@ print(monthly_counts)
 ```
 
 ## Counts, seasonally
+### Spring has the most sightings... not a shock considering the monthly breakdown above
 ```{r}
 
 # create a season column
@@ -116,10 +120,12 @@ ggplot(seasonal_counts, aes(x = Season, y = TotalCount, fill = Season)) +
 ```
 
 ## Counts, quad
-
+### Quad 384 is the highest - 1361 sightings - by an order of magnitude; next closest is Quad 383 with 878. Most quads are well below 100.
 ```{r}
 
 # total number of whales counted per quad regardless of year
+# same advice as the tables above; save and sort to clarify the spatial pattern of the whale movement
+
 quad_counts <- data %>%
   group_by(Quad) %>%
   summarise(TotalCount = sum(Count, na.rm = TRUE))
@@ -129,7 +135,7 @@ print(quad_counts)
 ```
 
 # Channel and Source Summaries
-## double check this is an accurate way to look at this. would work as a 'source' pie chart.
+## this isn't a helpful way to do this - will be revisited.
 ```{r}
 
 # need to go back and review if I set this up correctly - this is treating these like independent variables, not dependent...

@@ -46,7 +46,148 @@ extract_whale_identifiers <- function(comment) {
 }
 ```
 
+# more identifiers stuff before I manually cleaned the data; these steps are needed for the bulk cleaning, but don't work with the fine-tuning 
+
+### this step is for cleaning data from the beginning - use lines X-X to dis-aggregate the identifiers from the file named "\~/data_adjusted/sounders_clean_noIdentifiers.csv".
+
 ```{r}
 
+# we're going to extract all of the comments from the column and make them individual rows so we can assess what we have. This code came directly from ChatGPT
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Function to extract whale identifiers, including plain numbers and case-insensitive CRC identifiers
+# Updated pattern:
+  # 1. Matches # followed by digits (#123)
+  # 2. Matches case-insensitive CRC followed by digits (CRC-123, crc123)
+  # 3. Matches plain numbers (1234)
+  # 4. Matches names with one or two capitalized words (e.g., Shackleton, Little Patch)
+extract_whale_identifiers <- function(comment) {
+  pattern <- "(#[\\d]+|(?:[Cc][Rr][Cc][-]?\\d+)|\\b\\d+\\b|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
+  str_extract_all(comment, pattern)
+}
+
+# Apply the extraction function to create a new column
+data <- data %>%
+  mutate(whale_identifiers = sapply(lapply(comments, extract_whale_identifiers), paste, collapse = ", "))
+
+
+# Filter for rows where whale_identifiers is not NA
+#timeline_data <- data %>% filter(!is.na(whale_identifiers))
+
+# check your work & write out as a table to save progress if you need to.
+head(data)
+
+#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/timeline_data.csv", row.names = FALSE)
+
 ```
+
+## list identified whales, unique names
+
+```{r}
+
+# we have lists of IDs in the comments column, but not all of them are actual IDs but rather observation note (i.e., young whale) and we want to know what we're working with. This code came from ChatGPT.
+
+library(stringr)
+
+# Define the regex pattern used for extraction
+pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
+
+# Extract identifiers from comments
+extracted_identifiers <- str_extract_all(data$comments, pattern)
+
+# Flatten the list and get unique values
+unique_identifiers <- unique(unlist(extracted_identifiers))
+
+# View the unique identifiers
+print(unique_identifiers)
+
+# write out to your data_adjusted output folder
+
+# unblock this if you have made changes before this step to overwrite the old list
+#write.csv(unique_identifiers, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/identifiers.csv", row.names = FALSE)
+
+```
+
+## unique identifiers and sighting separations with counts in-tact. **This is the next step after line 93.**
+
+## Data Cleaning, Part 2
+
+## remove non-whale identifiers
+
+```{r}
+
+# Define a list of valid whale identifiers
+valid_identifiers <- c("#723", "#49", "#383", "CRC-44", "CRC-56", "#44", "Shrimp", "Gray", "#185", "Shackleton", "#21", "Earhart", "#22","CRC-49", "CRC-53", "Saratoga Gray", "#724", "CRC-531", "CRC-383", "CRC-21", "Possible Gray", "#531", "CRC-185", "Patch", "Lucyfer", "Dubknuck", "Lucyfe", "#56", "Gray Whale", "Little Patch", "#53", "Shack", "Newbie", "Likely Shackleton", "Sound Grey", "Whale", "#2259", "Shackelton", "Dubnunk", "#2258", "#356", "Possibly Dubknuck", "CRC-2246", "Dubnuk", "Dubnuck", "Juv", "CRC-2262", "Lucy", "#2246", "Gray Whales", "Earheart", "Stardust", "Hattie", "Sounder", "Thidwick", "Gretchen", "Cascade", "Carson", "Tahoma", "Stalwart", "Eaerhart", "Gisborne", "CRC-723", "CRC-22", "CRC-2549", "Delta", "CRC-2234", "Crc", "Cretchen", "CRC-2255", "#2262", "Newb", "Adult Grays", "Lucifer", "#2249", "Patches", "#42", "#33", "#2356", "#2261", "#2253", "#2252", "#2251", "#2234", "PCFG 185", "CRC2246", "young gray whale", "patch", "little patch", "53", "49", "56", "352", "185", "723")
+
+# Filter whale_identifiers to keep only valid ones
+data <- data %>%
+  mutate(whale_identifiers = lapply(whale_identifiers, function(ids) {
+    ids[ids %in% valid_identifiers]
+  }))
+
+```
+
+## re-check for unique identifiers
+
+## list identified whales, unique names
+
+```{r}
+
+# we have lists of IDs in the comments column, but not all of them are actual IDs but rather observation note (i.e., young whale) and we want to know what we're working with. This code came from ChatGPT.
+
+library(stringr)
+
+# Define the regex pattern used for extraction
+pattern <- "(#[\\d]+|CRC-\\d+|[A-Z][a-z]+(?:\\s[A-Z][a-z]+)?)"
+
+# Extract identifiers from comments
+extracted_identifiers <- str_extract_all(data$comments, pattern)
+
+# Flatten the list and get unique values
+unique_identifiers <- unique(unlist(extracted_identifiers))
+
+# View the unique identifiers
+print(unique_identifiers)
+
+# write out to your data_adjusted output folder
+
+# unblock this if you have made changes before this step to overwrite the old list
+#write.csv(unique_identifiers, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/identifiers2.csv", row.names = FALSE)
+
+```
+
+## unify multiple identifiers for an individual
+
+```{r}
+
+# Create a synonym mapping (key-value pairs)
+identifier_mapping <- c("A1" = "A", "A2" = "A", "B1" = "B", "B2" = "B")  # Example
+
+# Standardize identifiers
+data <- data %>%
+  mutate(whale_identifiers = lapply(whale_identifiers, function(ids) {
+    sapply(ids, function(id) ifelse(id %in% names(identifier_mapping), identifier_mapping[id], id))
+  }))
+
+```
+
+## adjust the df to account for multiple whales listed in one comment line
+
+```{r}
+
+library(tidyr)
+
+# Assume the `count` column represents the total number of whales observed
+data <- data %>%
+  unnest(whale_identifiers) %>%  # Each identifier gets its own row
+  group_by(row_id = row_number()) %>%  # Add unique row identifier
+  mutate(count = count / n()) %>%  # Divide count by number of identifiers
+  ungroup() %>%
+  select(-row_id)  # Remove helper column
+
+```
+
 

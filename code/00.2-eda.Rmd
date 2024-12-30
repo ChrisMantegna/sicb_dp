@@ -21,7 +21,7 @@ library(reader)
 
 # Load data
 
-## only working with the Sounders' data in this markdown file
+## working with all whales and Sounder data
 
 ```{r}
 
@@ -31,7 +31,7 @@ getwd()
 # we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
 #data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
 data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned_sep.csv")
-data2 <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/data_cleaned.csv")
+data2 <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/whale_data_no_sounders.csv")
 
 ```
 
@@ -47,24 +47,24 @@ data2 <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjuste
 
 # remove the columns we're not going to use
 columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction", "reportingParty")
-data <- data %>% select(-all_of(columns_to_drop))
+data2 <- data2 %>% select(-all_of(columns_to_drop))
 
 # take care of the empties with predetermined values
-data$time[data$time == ""] <- "0:00"
-data$count[data$count == ""] <- 1
-data$count[is.na(data$count)] <- 1
-data$channel[data$channel == ""] <- "unknown"
-data$source[data$source == ""] <- "unknown"
+data2$time[data2$time == ""] <- "0:00"
+data2$count[data2$count == ""] <- 1
+data2$count[is.na(data2$count)] <- 1
+data2$channel[data2$channel == ""] <- "unknown"
+data2$source[data2$source == ""] <- "unknown"
 
 # fix variable names in the channel and source columns. 
 # since both uppercase and lowercase are used, they will be treated as unique cases, this step stops that from happening. The 'dplyr' package does this.
-data <- data %>%
+data2 <- data2 %>%
   mutate(channel = tolower(channel),
          source = tolower(source),
          comments = tolower(comments))
 
 # check your work & then write out the new df as a safety stop
-head(data)
+head(data2)
 #write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned.csv", row.names = FALSE)
 
 ```
@@ -74,7 +74,7 @@ head(data)
 ```{r}
 
 # convert SightDate to date format and extract the month
-data <- data %>%
+data2 <- data2 %>%
   mutate(sightDate = as.Date(sightDate, format = "%m/%d/%y"),
          month = format(sightDate, "%m"))
          
@@ -85,7 +85,7 @@ data <- data %>%
 ```{r}
 
 # create a season column
-data <- data %>%
+data2 <- data2 %>%
   mutate(season = case_when(
     month(sightDate) %in% c(12, 1, 2) ~ "winter",
     month(sightDate) %in% c(3, 4, 5) ~ "spring",
@@ -94,11 +94,11 @@ data <- data %>%
   ))
 
 # fix the missing (-) on the long values; i think i removed them with a formatting process.
-data <- data %>%
+data2 <- data2 %>%
   mutate(long = paste0("-", long))
 
 # double check your work and save it - safety stop; the file name is to help me keep track of what was saved at which step
-head(data)
+head(data2)
 #write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
 
 ```
@@ -137,7 +137,7 @@ data <- data %>%
 # we are pulling the unique IDs out, making them their own row, and ensuring we don't inflate the count of whales. To make sure it is correct, we should see our total whale count remain at 2742. Any deviation indicates an error in changing the df. This is ChatGPT code.
 
 # pull out all identifiers
-all_identifiers <- str_extract_all(data$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") 
+all_identifiers <- str_extract_all(data2$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") 
 
 # Add a new column that splits `comments` into a list of identifiers
 data <- data %>%

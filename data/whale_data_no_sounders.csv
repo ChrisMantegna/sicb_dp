@@ -1,4 +1,4 @@
-SightDate,Year,Time,Quad,Fish Area,Lat,Long,UTMx,UTMy,ActLat,ActLong,Species,Count,Direction,Comments,Channel,Source,ReportingParty
+sightDate,year,time,quad,fishArea,lat,long,UTMx,UTMy,ActLat,ActLong,species,count,direction,comments,channel,source,reportingParty
 5/3/23,2023,8:53,411,10,47.56,-122.59,529700,5267800,0,0,Gray,1,N,,Hotline,Public,Dave Farr
 4/18/23,2023,9:35,411,10,47.56,-122.59,529700,5267800,0,0,Gray,1,,,Hotline,Public,Anon
 4/18/23,2023,8:53,411,10,47.56,-122.59,529700,5267800,0,0,Gray,1,W,,Hotline,Public,Dave Farr

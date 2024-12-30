@@ -1,0 +1,92 @@
+---
+title: EDA 00.3: Reporting Channel and Source
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+## working with all whales
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+#data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/all_whales_with_sounder_ids_cleaned.csv")
+
+```
+
+# Sightings Source/ Reporters
+## channel
+```{r}
+
+# Summarize counts for each channel
+channel_summary <- filtered_data %>%
+  group_by(channel) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Update channel_summary to include percentages in the legend labels
+channel_summary <- channel_summary %>%
+  mutate(legend_label = paste0(channel, " (", round(percentage, 1), "%)"))
+
+# Pie chart with percentages in the legend
+ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(
+    title = "Distribution of Channels",
+    fill = "Channel (with Percentage)"
+  ) +
+  theme_void()
+
+
+```
+
+## source
+### fix data source names
+```{r}
+
+# Summarize counts for each source
+source_summary <- filtered_data %>%
+  group_by(source) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Update source_summary to include percentages in the legend labels
+source_summary <- source_summary %>%
+  mutate(legend_label = paste0(source, " (", round(percentage, 1), "%)"))
+
+# Pie chart with percentages in the legend for source
+ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(
+    title = "Distribution of Sources",
+    fill = "Source (with Percentage)"
+  ) +
+  theme_void()
+
+```
+
+# Temporal Scale
+```{r}
+
+```
+

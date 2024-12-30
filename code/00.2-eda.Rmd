@@ -20,9 +20,7 @@ library(reader)
 ```
 
 # Load data
-
-## working with all whales and Sounder data
-
+## working with all whales
 ```{r}
 
 # figure out where you are on your computer
@@ -30,224 +28,287 @@ getwd()
 
 # we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
 #data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
-data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned_sep.csv")
-data2 <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/whale_data_no_sounders.csv")
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/all_whales_with_sounder_ids_cleaned.csv")
 
 ```
 
-# Data cleaning
+# Counts, overall
 
-## NOTE: this process only needs to be completed again if you are starting with a new baseline data file. The steps below are the process to complete the tasks listed above each block - we write out the files to "\~/output/data_adjusted/filename.csv" so that we don't have to keep doing these steps.
+## Sounder Designation Keys
+## Whale Identifier column: none= whales with no comments to tell us who they are, unknown= comment said Sounder but no ID confirmed or reporter was unsure, ID= an identified whale that may or may not be a Sounder.
 
-## clean up the df, fill in the empty data points, fix variation in capitalization of comments, channel & source
+## Sounder column: unknown= comment said Sounder but no ID confirmed, n= a whale with or without an ID that isn't a Sounder, y= an identified Sounder
 
+### total, complete count
 ```{r}
 
-# before importing the data, I changed all column names (for columns we're going to use) to lowercase or camelcase because I hate remembering to capitalize when I don't have to.
-
-# remove the columns we're not going to use
-columns_to_drop <- c("UTMx", "UTMy", "ActLat", "ActLong", "species", "direction", "reportingParty")
-data2 <- data2 %>% select(-all_of(columns_to_drop))
-
-# take care of the empties with predetermined values
-data2$time[data2$time == ""] <- "0:00"
-data2$count[data2$count == ""] <- 1
-data2$count[is.na(data2$count)] <- 1
-data2$channel[data2$channel == ""] <- "unknown"
-data2$source[data2$source == ""] <- "unknown"
-
-# fix variable names in the channel and source columns. 
-# since both uppercase and lowercase are used, they will be treated as unique cases, this step stops that from happening. The 'dplyr' package does this.
-data2 <- data2 %>%
-  mutate(channel = tolower(channel),
-         source = tolower(source),
-         comments = tolower(comments))
-
-# check your work & then write out the new df as a safety stop
-head(data2)
-#write.csv(data2, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/NONsounders_cleaned.csv", row.names = FALSE)
-
-```
-
-## format sightDate and pull out the month from the date
-
-```{r}
-
-# convert SightDate to date format and extract the month
-data2 <- data2 %>%
-  mutate(sightDate = as.Date(sightDate, format = "%m/%d/%y"),
-         month = format(sightDate, "%m"))
-         
-```
-
-## add a season column
-
-```{r}
-
-# create a season column
-data2 <- data2 %>%
-  mutate(season = case_when(
-    month(sightDate) %in% c(12, 1, 2) ~ "winter",
-    month(sightDate) %in% c(3, 4, 5) ~ "spring",
-    month(sightDate) %in% c(6, 7, 8) ~ "summer",
-    month(sightDate) %in% c(9, 10, 11) ~ "fall"
-  ))
-
-# fix the missing (-) on the long values; i think i removed them with a formatting process.
-data2 <- data2 %>%
-  mutate(long = paste0("-", long))
-
-# double check your work and save it - safety stop; the file name is to help me keep track of what was saved at which step
-head(data2)
-#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_clean_noIdentifiers.csv", row.names = FALSE)
-
-```
-
-## list identified whales from the comment column, make a new column
-```{r}
-
-# pull out the unique whale identifiers from the `comments` column
-# all the different formats: whole numbers, formatted identifiers like #21, crc-21, cr21, id21, nps21, and words
-unique_identifiers <- unique(str_extract_all(data$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") %>% unlist())
-
-# check your work
-print(unique_identifiers)
-
-# there shouldn't be an "r383" in the tablem so we will replace it properly
-data <- data %>%
-  mutate(comments = str_replace_all(comments, "\\br383\\b", "383"))
-
-# there shouldn't be a lone "2", so find it and figure out what it should be
-rows_with_2 <- data %>% 
-  filter(str_detect(comments, "\\b2\\b"))
-
-print(rows_with_2)
-
-#fixing the 2; it is a misplaced comma that is cutting 2 unique identifiers into 3 whales.
-data <- data %>%
-  mutate(comments = str_replace_all(comments, "\\b2,356,185\\b", "2356, 185"))
-
-# r-run the unique identifiers code at the beginning of this chunk to verify changes and look for any additional errors.
-
-```
-
-## change the df to reflect sightings and counts of identified whales
-```{r}
-
-# we are pulling the unique IDs out, making them their own row, and ensuring we don't inflate the count of whales. To make sure it is correct, we should see our total whale count remain at 2742. Any deviation indicates an error in changing the df. This is ChatGPT code.
-
-# pull out all identifiers
-all_identifiers <- str_extract_all(data2$comments, "\\b(?:#?\\w+-?\\d+|\\w+)\\b") 
-
-# Add a new column that splits `comments` into a list of identifiers
-data <- data %>%
-  mutate(identifiers = str_split(comments, ",\\s*"))
-
-# Unnest rows to create one row per identifier
-expanded_data <- data %>%
-  unnest(identifiers) %>%
-  mutate(
-    identifiers = trimws(identifiers), # Remove extra spaces
-    identifiers = if_else(
-      str_detect(identifiers, "^(\\d+|unknown)$"), 
-      identifiers, 
-      "unknown" # Keep only whole numbers and 'unknown'
-    )
-  )
-
-# Group by all columns except `count` and adjust `count` for multiple identifiers
-final_data <- expanded_data %>%
-  group_by(across(-c(count, identifiers))) %>% # Group by all other columns
-  mutate(
-    count = if_else(identifiers == "unknown", count - sum(identifiers != "unknown"), 1)
-  ) %>%
-  ungroup() %>%
-  rename(whale_identifier = identifiers) # Rename `identifiers` to `whale_identifier`
-
-
-# write out the updated dataset to a new file
-write.csv(final_data,"/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_added_rows.csv", row.names = FALSE)
-
-```
-
-
-# EDA
-
-## total count of Sounders sighted: 2742
-## total count of identified Sounders sighted in the adjusted df is 2746 - we have gained 4 whales and I don't know where. I will do some digging in the background to pull them out. For now, we will continue as if they don't exist.
-```{r}
-
-# total number of sounders sighted from 2013 - 2023
-# save the table it creates if you don't want to copy paste the data OR you can knit this markdown file to a pdf or html file that supports printing/ manipulation.
+# total number of whales sighted from 2013 - 2023 = 8872
 
 total_count <- sum(data$count, na.rm = TRUE)
 print(paste("Total Whale Count:", total_count))
 
 ```
 
-## count by year
-## 2018, 2019 and 2022 are the top years for Sounders' sightings with 445, 430 and 413 respectively
+### total, count breakdown by Sounder status
 ```{r}
 
-yearly_counts <- data %>%
-  group_by(year) %>%
-  summarise(yearlyCount = sum(count, na.rm = TRUE))
+# total number breakdown: 2327 Sounders, 293 unknown, 6252 non-Sounders
+
+# group by Sounder's designation
+counts_by_sounder <- aggregate(count ~ sounders, data = data, sum, na.rm = TRUE)
 
 # print
-print(yearly_counts)
+print("Total Whale Count by Sounder:")
+print(counts_by_sounder)
 
 ```
 
-## count by month
-## April and March are the most visited months, 1011 and 866 sightings respectively.
+### total, count breakdown by whale identifier
 ```{r}
 
-# total number of whales counted per month regardless of year
+# 22 and 53 (Earhart & Little Patch are seen the most); remaining data in the table below
 
-monthly_counts <- data %>%
-  group_by(month) %>%
-  summarise(totalCount = sum(count, na.rm = TRUE))
+#group by identifier
+counts_by_whale <- aggregate(count ~ whale_identifier, data = data, sum, na.rm = TRUE)
 
-print(monthly_counts)
+# print 
+print("Total Whale Count by Whale Identifier:")
+print(counts_by_whale)
 
 ```
 
-## count by season
-## Spring is the big visiting season by far with 2217 sightings.
+### counts, excluding unidentified whales
 ```{r}
 
-# group by season
-seasonal_counts <- data %>%
-  group_by(season) %>%
-  summarise(totalCount = sum(count, na.rm = TRUE)) %>%
-  arrange(match(season, c("Winter", "Spring", "Summer", "Fall")))
+# histogram of sightings, just to help visualize the table above (25 of the 58 identified whales were only seen once... worth investigation if there's time)
 
-# print
-print(seasonal_counts)
-
-# plot seasonal trends
+library(dplyr)
 library(ggplot2)
 
-ggplot(seasonal_counts, aes(x = season, y = totalCount, fill = season)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Whale Sightings by Season",
-       x = "Season",
-       y = "Total Count of Sightings") +
+# filter out 'none' and 'unknown' whales
+filtered_data <- data %>%
+  filter(!whale_identifier %in% c("none", "unknown"))
+
+# group by whale_identifier and count sightings
+sightings_per_whale <- filtered_data %>%
+  group_by(whale_identifier) %>%
+  summarise(sightings_count = sum(count, na.rm = TRUE)) %>%
+  arrange(desc(sightings_count))
+
+# plot a histogram 
+ggplot(sightings_per_whale, aes(x = sightings_count)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Whale Sightings Count",
+       x = "Number of Sightings",
+       y = "Number of Whales") +
   theme_minimal()
 
 ```
 
-## count by quad
-## Quad 384 is the big winner by several hundered sightings
+### proportion of sightings under 10 per whale
 ```{r}
 
-# total number of whales counted per quad regardless of year, descending order
-quad_counts <- data %>%
-  group_by(quad) %>%
-  summarise(totalCount = sum(count, na.rm = TRUE))%>%
-  arrange(desc(totalCount))
+# calculate proportion of whales with sightings under 10 = 58.62%. More than half of the ID'd whales were seen less than 10 times in 10 years.
 
-print(quad_counts)
+proportion_under_10 <- sightings_per_whale %>%
+  summarise(proportion = mean(sightings_count < 10)) %>%
+  pull(proportion)
+
+print(paste("Proportion of whales with sightings under 10:", round(proportion_under_10 * 100, 2), "%"))
 
 ```
+
+### sightings stats
+```{r}
+
+# compute basic stats on sightings count
+stats <- sightings_per_whale %>%
+  summarise(
+    mean_count = mean(sightings_count),
+    median_count = median(sightings_count),
+    max_count = max(sightings_count),
+    min_count = min(sightings_count),
+    q1 = quantile(sightings_count, 0.25),
+    q3 = quantile(sightings_count, 0.75)
+  )
+
+print("Summary Statistics for Sightings Count:")
+print(stats)
+
+# whales sightings in each quartile
+quartiles <- sightings_per_whale %>%
+  mutate(
+    quartile = case_when(
+      sightings_count <= stats$q1 ~ "Q1",
+      sightings_count > stats$q1 & sightings_count <= stats$median_count ~ "Q2",
+      sightings_count > stats$median_count & sightings_count <= stats$q3 ~ "Q3",
+      sightings_count > stats$q3 ~ "Q4"
+    )
+  )
+
+print("Whales by Quartile:")
+print(quartiles)
+
+```
+
+## Sounder confirmed & unknown sighting plot by whale for 10y span
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# filter data to include only sounders ('y' or 'unknown')
+filtered_data <- data %>%
+  filter(sounders %in% c("y", "unknown"))
+
+# group by year and whale_identifier & count the number of sounders identified per year
+sounders_by_year <- filtered_data %>%
+  group_by(year, whale_identifier) %>%
+  summarise(sounder_count = n(), .groups = "drop")
+
+# generate plots for each whale spanning from 2013 to 2023
+unique_whales <- unique(sounders_by_year$whale_identifier)
+
+for (whale in unique_whales) {
+  whale_data <- sounders_by_year %>%
+    filter(whale_identifier == whale) %>%
+    complete(year = 2013:2023, fill = list(sounder_count = 0)) # Fill missing years with 0 counts
+  
+  p <- ggplot(whale_data, aes(x = year, y = sounder_count)) +
+    geom_bar(stat = "identity", fill = "blue", color = "black", alpha = 0.7) +
+    labs(
+      title = paste("Sounders Identified Per Year for Whale:", whale),
+      x = "Year",
+      y = "Sounder Count"
+    ) +
+    theme_minimal() +
+    scale_x_continuous(breaks = seq(2013, 2023, 1)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
+  
+  # Save each plot to a file
+  #ggsave(filename = paste0("sounder_plot_", whale, ".png"), plot = p, width = 8, height = 6)
+}
+
+```
+
+# Annual plots 
+## number of sounders sightings by whale
+```{r}
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# Filter data to include only sounders ('y' or 'unknown')
+filtered_data <- data %>%
+  filter(sounders %in% c("y", "unknown"))
+
+# Group by year and whale_identifier and count the number of sounders identified per year
+sounders_by_year <- filtered_data %>%
+  group_by(year, whale_identifier) %>%
+  summarise(sounder_count = n(), .groups = "drop")
+
+# Generate plots for each year
+unique_years <- unique(sounders_by_year$year)
+
+for (year in unique_years) {
+  year_data <- sounders_by_year %>%
+    filter(year == !!year) %>%
+    complete(whale_identifier = unique(filtered_data$whale_identifier), fill = list(sounder_count = 0)) # Fill missing whales with 0 counts
+  
+  p <- ggplot(year_data, aes(x = reorder(whale_identifier, -sounder_count), y = sounder_count)) +
+    geom_bar(stat = "identity", fill = "blue", color = "black", alpha = 0.7) +
+    labs(
+      title = paste("Sounders Identified for All Whales in Year:", year),
+      x = "Whale Identifier",
+      y = "Sounder Count"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
+  
+  # Save each plot to a file
+  #ggsave(filename = paste0("sounder_plot_year_", year, ".png"), plot = p, width = 10, height = 6)
+}
+
+
+```
+
+## table of sightings by year, cumulative sounder counts
+```{r}
+
+# Group data by year and sounder and count sightings
+sightings_by_year <- filtered_data %>%
+  group_by(year, sounders) %>%
+  summarise(sightings_count = n(), .groups = "drop")
+
+# View the table
+print(sightings_by_year)
+
+
+```
+
+## line plot of sightings by year - this is in eda 00.1 as well
+```{r}
+
+library(ggplot2)
+
+# Line plot of sightings by year
+ggplot(sightings_by_year, aes(x = year, y = sightings_count, color = sounders, group = sounders)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Sightings by Year",
+    x = "Year",
+    y = "Number of Sightings",
+    color = "Sounder"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(min(sightings_by_year$year), max(sightings_by_year$year), 1))
+
+
+```
+
+## stacked bar of sightings by year
+### this can be cleaned up, and re-ordered. i think this is great for an overview going into the Sounders data
+```{r}
+
+# Ensure data includes whale_identifier counts by year
+sightings_by_year_whale <- filtered_data %>%
+  group_by(year, whale_identifier) %>%
+  summarise(sightings_count = n(), .groups = "drop")
+
+# Stacked bar plot color-coded by individual whale
+ggplot(sightings_by_year_whale, aes(x = year, y = sightings_count, fill = whale_identifier)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Sightings by Year (Stacked by Whale Identifier)",
+    x = "Year",
+    y = "Number of Sightings",
+    fill = "Whale Identifier"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(min(sightings_by_year_whale$year), max(sightings_by_year_whale$year), 1)) +
+  theme(legend.position = "right")  # Adjust legend placement
+
+
+```
+
+## table of sightings by month regardless of year, cumulative sounder counts
+```{r}
+
+# Group data by month and sounder and count sightings
+sightings_by_month <- filtered_data %>%
+  group_by(month, sounders) %>%
+  summarise(sightings_count = n(), .groups = "drop") %>%
+  arrange(as.numeric(month)) # Arrange months in numeric order
+
+# View the table
+print(sightings_by_month)
+
+
+```
+
+
 

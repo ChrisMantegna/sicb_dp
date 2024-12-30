@@ -65,7 +65,7 @@ data2 <- data2 %>%
 
 # check your work & then write out the new df as a safety stop
 head(data2)
-#write.csv(data, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/sounders_cleaned.csv", row.names = FALSE)
+#write.csv(data2, "/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/NONsounders_cleaned.csv", row.names = FALSE)
 
 ```
 

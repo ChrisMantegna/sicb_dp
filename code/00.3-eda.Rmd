@@ -52,7 +52,7 @@ channel_summary <- channel_summary %>%
   mutate(legend_label = paste0(channel, " (", round(percentage, 1), "%)"))
 
 # Pie chart with percentages in the legend
-ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
+channel<- ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
   geom_bar(stat = "identity", width = 1, color = "white") +
   coord_polar(theta = "y") +
   labs(
@@ -61,7 +61,9 @@ ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
   ) +
   theme_void()
 
+ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/channel_pie.png", plot=channel, width = 12, height = 10, dpi = 300)
 
+print(channel)
 ```
 
 ## source
@@ -78,7 +80,7 @@ source_summary <- source_summary %>%
   mutate(legend_label = paste0(source, " (", round(percentage, 1), "%)"))
 
 # Pie chart with percentages in the legend for source
-ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
+source<- ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
   geom_bar(stat = "identity", width = 1, color = "white") +
   coord_polar(theta = "y") +
   labs(
@@ -86,6 +88,8 @@ ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
     fill = "Source (with Percentage)"
   ) +
   theme_void()
+
+ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/source_pie.png", plot=source, width = 12, height = 10, dpi = 300)
 
 ```
 
@@ -99,7 +103,7 @@ monthly_summary <- filtered_data %>%
   summarise(sightings_count = n(), .groups = "drop")
 
 # Stacked bar plot: Reliable vs Public by month over 10 years
-ggplot(monthly_summary, aes(x = month, y = sightings_count, fill = source)) +
+annual_source<- ggplot(monthly_summary, aes(x = month, y = sightings_count, fill = source)) +
   geom_bar(stat = "identity") +
   labs(
     title = "Reliable vs Public Sightings (Month by Month) Over 10 Years",
@@ -110,7 +114,7 @@ ggplot(monthly_summary, aes(x = month, y = sightings_count, fill = source)) +
   scale_x_discrete(limits = sprintf("%02d", 1:12), labels = month.abb) +  # Use month abbreviations
   theme_minimal()
 
-
+ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/annual_source.png", plot=annual_source, width = 12, height = 10, dpi = 300)
 
 ```
 
@@ -123,7 +127,7 @@ yearly_summary <- filtered_data %>%
   summarise(sightings_count = n(), .groups = "drop")
 
 # Facet-wrapped stacked bar plots
-ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = source)) +
+yearly_source<- ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = source)) +
   geom_bar(stat = "identity") +
   labs(
     title = "Reliable vs Public Sightings by Year",
@@ -135,7 +139,7 @@ ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = source)) +
   theme_minimal() +
   facet_wrap(~ year, ncol = 3)  # Adjust columns as needed
 
-
+ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/yearly_source.png", plot=yearly_source, width = 12, height = 10, dpi = 300)
 
 ```
 
@@ -154,11 +158,13 @@ library(dplyr)
 data <- data %>%
   mutate(
     time_clean = ifelse(time == "9:99" | time == "0:00", NA, paste0(time, ":00")), # Fix missing seconds
-    time_parsed = as.POSIXct(time_clean, format = "%H:%M:%S", tz = "UTC"),
+    time_parsed = as.POSIXct(time_clean, format = "%H:%M:%S", tz = "PST"),
     time_of_day = case_when(
       is.na(time_parsed) ~ "Not recorded",                       # Handle NA times
       time_parsed >= as.POSIXct("00:00:01", format = "%H:%M:%S") & 
-      time_parsed <= as.POSIXct("05:59:59", format = "%H:%M:%S") ~ "Early Morning",  # 0:01 to 5:59
+      time_parsed <= as.POSIXct("03:59:59", format = "%H:%M:%S") ~ "Before Sunrise",  # 0:01 to 3:59
+      time_parsed >= as.POSIXct("04:00:00", format = "%H:%M:%S") & 
+      time_parsed <= as.POSIXct("05:59:59", format = "%H:%M:%S") ~ "Early Morning",  # 4:00 to 5:59
       time_parsed >= as.POSIXct("06:00:00", format = "%H:%M:%S") & 
       time_parsed <= as.POSIXct("09:59:59", format = "%H:%M:%S") ~ "Late Morning",  # 6:00 to 9:59
       time_parsed >= as.POSIXct("10:00:00", format = "%H:%M:%S") & 
@@ -177,6 +183,14 @@ head(data)
 
 
 ```
+
+## troubleshoot time problem
+```{r}
+
+head(data$time)
+
+```
+
 
 ## counts by time of day
 ### based on the general results below, I'm going to break morning into two groups to clarify since the results are as follows\

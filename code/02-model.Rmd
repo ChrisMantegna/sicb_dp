@@ -1,0 +1,191 @@
+---
+title: Model 02: Testing Most/ Least Likely
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+
+# libraries
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(reader)
+
+```
+
+# Load data
+```{r}
+
+# figure out where you are on your computer
+getwd()
+
+# we're going to focus on only the data for the sounders for this one. Note you'll need to change the file path to match where it is on your computer
+#data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/data/sounders.csv")
+data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted/all_whales_with_sounder_ids_cleaned.csv")
+
+```
+
+## preprocess
+```{r}
+
+#troubleshoot the time errors before running what is below
+data <- data %>%
+  mutate(
+    # Replace invalid formats with "0:00"
+    time = ifelse(!grepl("^\\d{1,2}:\\d{2}$", time), "0:00", time),
+    
+    # Append ":00" to ensure proper format
+    time_clean = ifelse(nchar(time) == 4, paste0("0", time, ":00"), 
+                        ifelse(nchar(time) == 5, paste0(time, ":00"), time)),
+    
+    # Parse time_clean
+    time_parsed = hms::as_hms(time_clean),
+    
+    # Create numeric and cyclic time features
+    time_numeric = hour(time_parsed),
+    time_sin = sin(2 * pi * time_numeric / 24),
+    time_cos = cos(2 * pi * time_numeric / 24)
+  )
+
+
+
+
+data <- data %>%
+  # Remove the comments column
+  #select(-comments) %>%
+  
+  # Clean and parse the time column
+  mutate(
+    time_clean = ifelse(nchar(time) == 4, paste0("0", time, ":00"), 
+                        ifelse(nchar(time) == 5, paste0(time, ":00"), time)),
+    time_parsed = hms::as_hms(time_clean),
+    time_numeric = hour(time_parsed),
+    time_sin = sin(2 * pi * time_numeric / 24),
+    time_cos = cos(2 * pi * time_numeric / 24),
+    
+    # Ensure latitude and longitude are numeric
+    latitude = as.numeric(lat),
+    longitude = as.numeric(long),
+    
+    # Convert quad column to factor
+    map_quadrant = factor(quad)
+  ) %>%
+  select(-time_clean, -time_parsed)  # Drop intermediate columns if not needed
+
+
+```
+
+## split data to train
+```{r}
+
+#install.packages("tidymodels")
+#install.packages("rsample")
+library("rsample")
+library("tidymodels")
+
+# Perform a non-stratified split
+set.seed(123)
+data_split <- initial_split(data, prop = 0.7)
+train_data <- training(data_split)
+test_data <- testing(data_split)
+
+```
+
+## recipe
+```{r}
+
+sightings_recipe <- recipe(sightDate ~ time_sin + time_cos + latitude + longitude + map_quadrant, data = train_data) %>%
+  step_normalize(all_numeric_predictors()) %>% # Normalize numeric predictors
+  step_dummy(all_nominal_predictors())        # Convert factors (like map_quadrant) to dummy variables
+
+
+```
+
+## train - forrest
+```{r}
+
+install.packages("ranger")
+library("ranger")
+# Define a model
+rf_model <- rand_forest(trees = 500, mode = "regression") %>%
+  set_engine("ranger")
+
+# Create a workflow
+sightings_workflow <- workflow() %>%
+  add_recipe(sightings_recipe) %>%
+  add_model(rf_model)
+
+# Train the model
+sightings_fit <- sightings_workflow %>%
+  fit(data = train_data)
+
+
+```
+
+## evaluate
+```{r}
+
+# Make predictions
+predictions <- predict(sightings_fit, test_data) %>%
+  bind_cols(test_data)
+
+# Evaluate model performance
+metrics <- metrics(predictions, truth = sightings, estimate = .pred)
+
+print(metrics)
+
+# Plot predictions vs actuals
+ggplot(predictions, aes(x = .pred, y = sightings)) +
+  geom_point() +
+  geom_abline(color = "red") +
+  labs(title = "Predicted vs Actual Sightings",
+       x = "Predicted Sightings",
+       y = "Actual Sightings")
+
+
+```
+
+## map
+```{r}
+
+# Example using `sf` for mapping
+predictions_sf <- predictions %>%
+  mutate(predicted_sightings = .pred) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+
+# Plot the map
+ggplot() +
+  geom_sf(data = predictions_sf, aes(size = predicted_sightings, color = predicted_sightings)) +
+  scale_color_viridis_c() +
+  labs(title = "Predicted Whale Sightings Map", size = "Sightings") +
+  theme_minimal()
+
+
+```
+
+## finetune
+```{r}
+
+# Create resamples for cross-validation
+folds <- vfold_cv(train_data, v = 5)
+
+# Tune the model
+tune_results <- tune_grid(
+  sightings_workflow,
+  resamples = folds,
+  grid = 10,
+  metrics = metric_set(rmse, rsq)
+)
+
+# Select the best model
+best_model <- select_best(tune_results, "rmse")
+
+
+```
+

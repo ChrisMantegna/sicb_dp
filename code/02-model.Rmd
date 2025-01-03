@@ -34,6 +34,9 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 ## preprocess
 ```{r}
 
+library(lubridate)
+
+# Time - picj which clean/ parse method works best and delete the other
 #troubleshoot the time errors before running what is below
 data <- data %>%
   mutate(
@@ -55,7 +58,6 @@ data <- data %>%
 
 
 
-
 data <- data %>%
   # Remove the comments column
   #select(-comments) %>%
@@ -74,7 +76,7 @@ data <- data %>%
     longitude = as.numeric(long),
     
     # Convert quad column to factor
-    map_quadrant = factor(quad)
+    #map_quadrant = factor(quad)
   ) %>%
   select(-time_clean, -time_parsed)  # Drop intermediate columns if not needed
 
@@ -88,6 +90,7 @@ data <- data %>%
 #install.packages("rsample")
 library("rsample")
 library("tidymodels")
+library(lubridate)
 
 # Perform a non-stratified split
 set.seed(123)
@@ -95,23 +98,40 @@ data_split <- initial_split(data, prop = 0.7)
 train_data <- training(data_split)
 test_data <- testing(data_split)
 
+# fix date in train_data
+# Date
+train_data <- train_data %>%
+  mutate(sightDate_parsed = mdy(sightDate))
+
+train_data <- train_data %>%
+  mutate(
+    sightYear = year(sightDate_parsed),                 # Extract year
+    sightMonth = month(sightDate_parsed),               # Extract month as a number
+    sightDay = day(sightDate_parsed),                   # Extract day of the month
+    sightWeekday = wday(sightDate_parsed, label = TRUE) # Extract day of the week as a factor
+  )
+
+
 ```
 
 ## recipe
 ```{r}
 
-sightings_recipe <- recipe(sightDate ~ time_sin + time_cos + latitude + longitude + map_quadrant, data = train_data) %>%
-  step_normalize(all_numeric_predictors()) %>% # Normalize numeric predictors
-  step_dummy(all_nominal_predictors())        # Convert factors (like map_quadrant) to dummy variables
-
+sightings_recipe <- recipe(~ sightYear + sightMonth + sightDay + sightWeekday + time_sin + time_cos + latitude + longitude + quad, data = train_data) %>%
+  step_mutate(quad = as.factor(quad)) %>% 
+  step_normalize(all_numeric_predictors()) %>%  # Normalize numeric predictors
+  step_dummy(all_nominal_predictors())         # Create dummy variables for factors
 
 ```
 
 ## train - forrest
 ```{r}
 
-install.packages("ranger")
+#install.packages("ranger")
 library("ranger")
+
+train_data$quad <- as.factor(train_data$quad)
+
 # Define a model
 rf_model <- rand_forest(trees = 500, mode = "regression") %>%
   set_engine("ranger")

@@ -38,60 +38,158 @@ data <- read.csv("/Users/cmantegna/Documents/GitHub/sicb_dp/output/data_adjusted
 ```{r}
 
 # filter out 'none' and 'unknown' whales
-filtered_data <- data %>%
-  filter(!whale_identifier %in% c("none", "unknown"))
+#filtered_data <- data %>%
+  #filter(!whale_identifier %in% c("none", "unknown"))
 
 # Summarize counts for each channel
-channel_summary <- filtered_data %>%
+channel_summary <- data %>%
   group_by(channel) %>%
   summarise(count = n(), .groups = "drop") %>%
   mutate(percentage = (count / sum(count)) * 100)
 
-# Update channel_summary to include percentages in the legend labels
+# Update channel_summary to include percentages in the legend labels with capitalized channel names
 channel_summary <- channel_summary %>%
-  mutate(legend_label = paste0(channel, " (", round(percentage, 1), "%)"))
+  mutate(
+    channel = str_to_title(channel), # Capitalize the first letter of each channel name
+    legend_label = paste0(channel, " (", round(percentage, 1), "%)")
+  )
 
-# Pie chart with percentages in the legend
-channel<- ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
+# Pie chart with percentages in the legend and larger text
+channel <- ggplot(channel_summary, aes(x = "", y = count, fill = legend_label)) +
   geom_bar(stat = "identity", width = 1, color = "white") +
   coord_polar(theta = "y") +
   labs(
-    title = "Distribution of Channels",
+    title = "Reporting Channels",
     fill = "Channel (with Percentage)"
   ) +
-  theme_void()
+  theme_void() +
+  theme(
+    legend.title = element_text(size = 14), # Increase legend title font size
+    legend.text = element_text(size = 12), # Increase legend text font size
+    plot.title = element_text(size = 16, hjust = 0.5) # Center and enlarge title
+  )
 
-ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/channel_pie.png", plot=channel, width = 12, height = 10, dpi = 300)
+# Save the plot
+ggsave(filename = "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/channel_pie.png",
+       plot = channel, width = 12, height = 10, dpi = 300)
 
+# Print the plot
 print(channel)
+
 ```
 
 ## source
 ```{r}
 
-# Summarize counts for each source
-source_summary <- filtered_data %>%
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+# Define categories
+source_categories <- c("public", "reliable")
+
+# Summarize counts for each source, categorize, and aggregate "Unknown" sources
+source_summary <- data %>%
   group_by(source) %>%
   summarise(count = n(), .groups = "drop") %>%
-  mutate(percentage = (count / sum(count)) * 100)
+  mutate(
+    percentage = (count / sum(count)) * 100,
+    category = case_when(
+      source %in% source_categories ~ source,  # Assign as "Public" or "Reliable"
+      TRUE ~ "Unknown"                         # Assign as "Unknown" if not in categories
+    )
+  ) %>%
+  group_by(category) %>%  # Aggregate counts for the "Unknown" category
+  summarise(
+    count = sum(count),
+    percentage = sum(percentage),
+    .groups = "drop"
+  )
 
-# Update source_summary to include percentages in the legend labels
+# Capitalize category names and create legend labels
 source_summary <- source_summary %>%
-  mutate(legend_label = paste0(source, " (", round(percentage, 1), "%)"))
+  mutate(
+    category = str_to_title(category), # Capitalize the category names
+    legend_label = paste0(category, " (", round(percentage, 1), "%)")
+  )
 
-# Pie chart with percentages in the legend for source
-source<- ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
+# Pie chart with percentages in the legend
+source <- ggplot(source_summary, aes(x = "", y = count, fill = legend_label)) +
   geom_bar(stat = "identity", width = 1, color = "white") +
   coord_polar(theta = "y") +
   labs(
-    title = "Distribution of Sources",
+    title = "Reporting Sources",
     fill = "Source (with Percentage)"
   ) +
-  theme_void()
+  theme_void() +
+  theme(
+    legend.title = element_text(size = 14),  # Larger legend title
+    legend.text = element_text(size = 12),  # Larger legend text
+    plot.title = element_text(size = 16, hjust = 0.5)  # Center and enlarge title
+  )
 
-ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/source_pie.png", plot=source, width = 12, height = 10, dpi = 300)
+# Save the plot
+ggsave(filename = "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/source_pie.png",
+       plot = source, width = 12, height = 10, dpi = 300)
+
+# Print the plot
+print(source)
+
 
 ```
+
+# Number of whale sightings by sounder v not sounder designation
+```{r}
+
+library(dplyr)
+library(ggplot2)
+
+# Summarize counts for each Sounders category (Y and N)
+sightings_summary <- data %>%
+  group_by(sounders) %>%
+  summarise(count = sum(count), .groups = "drop") %>%
+  mutate(
+    percentage = (count / sum(count)) * 100,
+    category = case_when(
+      sounders == "y" ~ "Sounders",
+      TRUE ~ "Other/Unknown"
+    )
+  ) %>%
+  group_by(category) %>%  # Aggregate counts for categories
+  summarise(
+    count = sum(count),
+    percentage = sum(percentage),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    legend_label = paste0(category, " (", round(percentage, 1), "%)")
+  )
+
+# Create the pie chart
+whale_chart <- ggplot(sightings_summary, aes(x = "", y = count, fill = legend_label)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(
+    title = "Total Gray Whale Sightings 2013 - 2023",
+    fill = "Whales"
+  ) +
+  theme_void() +
+  theme(
+    legend.title = element_text(size = 14),  # Larger legend title
+    legend.text = element_text(size = 12),  # Larger legend text
+    plot.title = element_text(size = 16, hjust = 0.5)  # Center and enlarge title
+  )
+
+# Save the chart
+ggsave(filename = "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/whale_pie.png",
+       plot = whale_chart, width = 12, height = 10, dpi = 300)
+
+# Print the chart
+print(whale_chart)
+
+
+```
+
 
 # Temporal Scale
 ## monthly breakdown of reliable v public sightings regardless of year
@@ -121,13 +219,33 @@ ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/annua
 ## sightings by year, reliable v public
 ```{r}
 
-# Summarize sightings by year, month, and source
-yearly_summary <- filtered_data %>%
-  group_by(year, month, source) %>%
-  summarise(sightings_count = n(), .groups = "drop")
+
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+# Define categories
+source_categories <- c("public", "reliable")
+
+# Summarize counts for each source and categorize
+data <- data %>%
+  mutate(
+    category = case_when(
+      source %in% source_categories ~ str_to_title(source),  # Assign as "Public" or "Reliable" (capitalize names)
+      TRUE ~ "Unknown"  # Assign as "Unknown" if not in categories
+    )
+  )
+
+# Summarize sightings by year, month, and category
+yearly_summary <- data %>%
+  group_by(year, month, category) %>%
+  summarise(sightings_count = n(), .groups = "drop") %>%
+  mutate(
+    month = sprintf("%02d", as.integer(month))  # Ensure month format is zero-padded for sorting
+  )
 
 # Facet-wrapped stacked bar plots
-yearly_source<- ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = source)) +
+yearly_source2 <- ggplot(yearly_summary, aes(x = month, y = sightings_count, fill = category)) +
   geom_bar(stat = "identity") +
   labs(
     title = "Reliable vs Public Sightings by Year",
@@ -137,9 +255,17 @@ yearly_source<- ggplot(yearly_summary, aes(x = month, y = sightings_count, fill 
   ) +
   scale_x_discrete(limits = sprintf("%02d", 1:12), labels = month.abb) +  # Use month abbreviations
   theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12),  # Increase facet label size
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Adjust month axis text
+  ) +
   facet_wrap(~ year, ncol = 3)  # Adjust columns as needed
 
-ggsave(filename= "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/yearly_source.png", plot=yearly_source, width = 12, height = 10, dpi = 300)
+# Print the plot
+print(yearly_source2)
+
+# Save the plot
+ggsave(filename = "/Users/cmantegna/Documents/GitHub/sicb_dp/output/figures/yearly_source2.png", plot = yearly_source2, width = 12, height = 10, dpi = 300)
 
 ```
 
@@ -218,4 +344,87 @@ print(sightings_by_time_of_day)
 
 ```
 
+# sightings by location
+```{r}
+
+library(ggplot2)
+library(sf)
+library(dplyr)
+library(ggspatial)
+library(maps)
+
+# Filter the data for Sounders only
+sounder_whales <- data %>%
+  filter(sounders == "y")
+
+# Convert data to an sf object for mapping
+sounder_sf <- st_as_sf(sounder_whales, coords = c("long", "lat"), crs = 4326)
+
+# Load a base map and focus on Washington State
+usa <- st_as_sf(map("state", plot = FALSE, fill = TRUE))  # US states
+washington <- usa %>%
+  filter(ID == "washington")  # Filter for Washington State
+
+# Plot the sightings on the Washington map
+ggplot() +
+  geom_sf(data = washington, fill = "lightgrey", color = "white") +
+  geom_sf(data = sounder_sf, aes(color = whale_identifier), size = 2, alpha = 0.7) +
+  scale_color_viridis_d(option = "turbo") +  # Use a color palette suitable for categorical data
+  labs(
+    title = "Sounder Whale Sightings in Washington State by Identifier",
+    color = "Whale Identifier",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  theme_minimal()
+
+```
+
+# zoom in
+```{r}
+
+library(ggplot2)
+library(sf)
+library(dplyr)
+library(maps)
+
+
+# Filter the data for Sounders only
+sounder_whales <- data %>%
+  filter(sounders == "y")
+
+# Convert data to an sf object for mapping
+sounder_sf <- st_as_sf(sounder_whales, coords = c("long", "lat"), crs = 4326)
+
+# Load a base map and focus on Washington State
+usa <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+washington <- usa %>%
+  filter(ID == "washington")
+
+# Define the coordinate limits to zoom into a specific area
+# Replace these with the desired longitude and latitude ranges
+x_limits <- c(-123.5, -122)  # Longitude range
+y_limits <- c(47, 49)      # Latitude range
+
+# Plot the sightings on the Washington map with zoomed-in area
+ggplot() +
+  geom_sf(data = washington, fill = "lightgrey", color = "white") +
+  geom_sf(data = sounder_sf, aes(color = whale_identifier), size = 3, alpha = 0.8) +
+  scale_color_viridis_d(option = "turbo") +
+  coord_sf(xlim = x_limits, ylim = y_limits, expand = FALSE) +
+  labs(
+    title = "Sounder Whale Sightings Zoomed In by Identifier",
+    color = "Whale Identifier",
+    x = "Longitude",
+    y = "Latitude"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+
+```
 
